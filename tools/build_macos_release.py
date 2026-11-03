@@ -23,7 +23,8 @@ MACHO_MAGICS = {
     b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca",
 }
 RESOURCES = (
-    "core/dashboard.html", "core/tv-client.bundle",
+    "core/dashboard.html", "core/enhanced.html", "core/tv_dashboard.html",
+    "core/tv-client.bundle",
     "assets/sidee-logo.png", "assets/nuvio-wordmark.png", "assets/jellyfin.png",
     "README.md", "LICENSE",
 )
@@ -43,9 +44,12 @@ def normalized_architecture(value):
 
 
 def validate_version(value):
+    """Accept the project's release tags: vX.Y.Z and the four-part hotfix
+    tags vX.Y.Z.N used by the release workflow and docs/releases/."""
     value = value.removeprefix("v")
-    if not re.fullmatch(r"\d+\.\d+\.\d+", value):
-        raise ValueError("The bundle version must use X.Y.Z (optionally prefixed with v).")
+    if not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", value):
+        raise ValueError(
+            "The bundle version must use X.Y.Z or X.Y.Z.N (optionally prefixed with v).")
     return value
 
 

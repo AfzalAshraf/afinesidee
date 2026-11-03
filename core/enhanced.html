@@ -1,0 +1,977 @@
+<!doctype html>
+<!--
+  Sidee Enhanced — redesigned browser console.
+  Served at "/". This is the admin UI (desktop + mobile); the TV-facing page
+  is core/tv_dashboard.html served at "/dashboard". The old three-step page
+  is still available at "/setup" for compatibility.
+  No external scripts, fonts, analytics or CDNs: everything is local.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Sidee Enhanced — Your TV, your apps</title>
+<link rel="icon" href="/assets/sidee-logo.png">
+<style>
+  :root{color-scheme:dark;--bg:#0b0d12;--panel:#141821;--panel2:#1b2030;--line:#262c3b;
+    --ink:#f3f5fa;--muted:#98a0b3;--accent:#ffe600;--accent2:#7c5cff;--good:#39c07a;--bad:#ff6b6b;
+    --radius:18px;--ease:cubic-bezier(.22,1,.36,1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  a{color:inherit}
+  h1,h2,h3,p{margin:0}
+  img{display:block;max-width:100%}
+  [hidden]{display:none!important}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+
+  /* Sidebar */
+  .side{background:linear-gradient(180deg,#12161f,#0c0f16);border-right:1px solid var(--line);
+    padding:22px 16px;display:flex;flex-direction:column;gap:8px;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:12px;padding:6px 8px 20px}
+  .brand img{width:40px;height:40px;border-radius:12px}
+  .brand b{font-size:16px;letter-spacing:-.03em;display:block}
+  .brand span{font-size:11px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase}
+  .nav{display:flex;flex-direction:column;gap:4px}
+  .nav button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    background:transparent;border:0;color:var(--muted);padding:11px 14px;border-radius:12px;
+    font-size:14px;font-weight:550;transition:background .15s,color .15s}
+  .nav button .em{font-size:18px;width:22px;text-align:center}
+  .nav button:hover{background:#1a1f2b;color:var(--ink)}
+  .nav button.active{background:linear-gradient(100deg,rgba(255,230,0,.14),rgba(124,92,255,.12));
+    color:var(--ink);box-shadow:inset 2px 0 0 var(--accent)}
+  .nav .sep{height:1px;background:var(--line);margin:14px 8px}
+  .side-foot{margin-top:auto;font-size:11px;color:#5d6577;padding:10px 10px 0;line-height:1.6}
+  .side-foot a{color:var(--muted)}
+
+  /* Main + topbar */
+  .main{min-width:0;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px clamp(16px,3vw,36px);
+    border-bottom:1px solid var(--line);background:rgba(13,16,23,.85);backdrop-filter:blur(14px);
+    position:sticky;top:0;z-index:20}
+  .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+    border:1px solid var(--line);background:var(--panel);padding:8px 13px;border-radius:100px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#7b8191}
+  .status.on .dot{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .status.on{color:var(--good)}
+  .top .spacer{flex:1}
+  .search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:0 12px;min-width:190px}
+  .search input{background:transparent;border:0;color:var(--ink);outline:none;padding:9px 0;font-size:13px;width:100%}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;
+    padding:9px 15px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--ink);font-size:13px;font-weight:600;transition:transform .14s var(--ease),border-color .14s,opacity .14s}
+  .btn:hover{border-color:#414a5e}
+  .btn:active{transform:scale(.97)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.primary{background:var(--accent);color:#1a1a00;border-color:transparent}
+  .btn.violet{background:linear-gradient(100deg,var(--accent2),#5b8bff);border-color:transparent;color:#fff}
+  .btn.ghost{background:transparent}
+  .btn.sm{min-height:32px;padding:6px 11px;font-size:12px;border-radius:10px}
+  .btn.danger{color:var(--bad)}
+
+  .content{padding:clamp(20px,3vw,40px);max-width:1400px;width:100%;margin:0 auto}
+  .view{display:none;animation:fade .25s var(--ease)}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+  .eyebrow{color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1.title{font-size:clamp(24px,2.2vw,36px);font-weight:700;letter-spacing:-.045em;margin-top:6px}
+  .sub{color:var(--muted);font-size:14px;margin-top:6px;max-width:70ch}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:clamp(16px,2vw,24px)}
+  .card h2{font-size:16px;letter-spacing:-.02em}
+  .card .hint{color:var(--muted);font-size:12.5px;margin-top:6px}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+
+  /* App tiles */
+  .tile{position:relative;background:linear-gradient(165deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;
+    transition:border-color .15s,transform .15s var(--ease),box-shadow .15s;min-width:0}
+  .tile:hover{border-color:#3d465c;transform:translateY(-2px)}
+  .tile.dragging{opacity:.4}
+  .tile.dragover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,230,0,.3)}
+  .tile .toprow{display:flex;align-items:flex-start;gap:12px}
+  .tile .art{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;
+    font-size:28px;flex-shrink:0;overflow:hidden;background:#22283a}
+  .tile .art img{width:100%;height:100%;object-fit:cover}
+  .tile .nm{font-weight:650;font-size:15px;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tile .url{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .tile .cat{position:absolute;top:12px;right:14px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#7d869a}
+  .pill{font-size:10px;padding:3px 8px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
+  .pill.on{color:var(--good);border-color:rgba(57,192,122,.4);background:rgba(57,192,122,.08)}
+  .tile .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+  .grip{cursor:grab;color:#5d6577;font-size:16px;line-height:1;user-select:none;padding:2px}
+  .empty-state{text-align:center;color:var(--muted);padding:56px 20px;border:1px dashed var(--line);border-radius:16px}
+  .empty-state .big{font-size:40px;margin-bottom:10px}
+
+  /* Catalog */
+  .catgroup{margin-bottom:26px}
+  .catgroup h3{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;
+    display:flex;align-items:center;gap:10px}
+  .catgroup h3::after{content:"";flex:1;height:1px;background:var(--line)}
+  .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+  .cat-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;
+    display:flex;flex-direction:column;gap:9px;min-width:0}
+  .cat-card .art{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:24px}
+  .cat-card .nm{font-weight:640;font-size:14px}
+  .cat-card .ds{font-size:11.5px;color:var(--muted);flex:1;min-height:30px}
+  .cat-card input{width:100%;font-size:12px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);
+    background:#0e1119;color:var(--ink)}
+
+  /* Forms */
+  label{display:block;font-size:11px;font-weight:650;color:var(--muted);letter-spacing:.04em;margin-bottom:6px}
+  .field{display:flex;flex-direction:column;gap:0;margin-bottom:14px}
+  input[type=text],input[type=url],input[type=number],select,textarea{
+    width:100%;min-height:42px;border:1px solid var(--line);border-radius:11px;padding:9px 12px;
+    background:#0e1119;color:var(--ink);font-size:14px;outline:none}
+  textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  .warn{display:flex;gap:10px;align-items:flex-start;background:rgba(255,230,0,.08);
+    border:1px solid rgba(255,230,0,.28);color:#f4e27a;border-radius:12px;padding:12px 14px;font-size:12.5px;margin:6px 0 16px}
+  .toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px}
+  .switch{width:44px;height:24px;border-radius:100px;background:#333a4c;border:0;position:relative;flex-shrink:0}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;
+    background:#fff;transition:left .15s}
+  .switch.on{background:var(--accent)}
+  .switch.on::after{left:23px;background:#1a1a00}
+  .swatches{display:flex;gap:8px;flex-wrap:wrap}
+  .swatch{width:34px;height:34px;border-radius:10px;border:2px solid transparent}
+  .swatch.sel{border-color:#fff}
+  .icon-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px;max-height:190px;overflow:auto;
+    padding:6px;background:#0e1119;border:1px solid var(--line);border-radius:12px}
+  .icon-opt{aspect-ratio:1;border-radius:11px;border:1px solid var(--line);background:#1a1f2c;font-size:22px}
+  .icon-opt.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,230,0,.25)}
+  .callout{display:flex;gap:14px;align-items:flex-start;background:linear-gradient(110deg,rgba(124,92,255,.12),rgba(255,230,0,.06));
+    border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:22px}
+  .callout .big{font-size:30px}
+  .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#0e1119;
+    border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--accent);
+    overflow-wrap:anywhere;user-select:all}
+
+  /* Modal + toast */
+  .overlay{position:fixed;inset:0;background:rgba(4,6,11,.72);backdrop-filter:blur(6px);z-index:60;
+    display:grid;place-items:center;padding:18px}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:20px;width:min(560px,100%);
+    max-height:92vh;overflow:auto;padding:24px;box-shadow:0 30px 90px rgba(0,0,0,.6)}
+  .modal h2{font-size:19px;margin-bottom:4px}
+  .modal .x{float:right;background:transparent;border:0;color:var(--muted);font-size:22px;line-height:1}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);z-index:90;
+    background:#20263a;border:1px solid var(--line);color:var(--ink);padding:12px 20px;border-radius:12px;
+    font-size:13px;opacity:0;pointer-events:none;transition:all .25s var(--ease);max-width:90vw;box-shadow:0 16px 40px rgba(0,0,0,.5)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.ok{border-color:var(--good)}#toast.err{border-color:var(--bad)}
+
+  /* Wizard */
+  .steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+  .step{flex:1 1 180px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .step.active{border-color:var(--accent)}
+  .step .n{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .step h3{font-size:14px;margin-top:6px}
+  .step p{font-size:12px;color:var(--muted);margin-top:5px}
+  .qrbox{display:flex;gap:20px;flex-wrap:wrap;align-items:center}
+  .qrbox img{width:170px;height:170px;background:#fff;border-radius:12px;padding:8px}
+  .dev{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:8px 0;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
+
+  .footnote{color:var(--muted);font-size:11.5px;margin-top:26px;line-height:1.7}
+  .footnote a{color:var(--accent)}
+  .media-item{display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:8px;flex-wrap:wrap}
+  .media-item .grow{flex:1;min-width:180px}
+  [data-tip]{position:relative}
+  [data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:0;
+    background:#000;border:1px solid var(--line);color:#fff;font-size:11px;font-weight:400;padding:6px 9px;
+    border-radius:8px;white-space:nowrap;z-index:30}
+
+  @media(max-width:860px){
+    .app{grid-template-columns:1fr}
+    .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px;gap:6px}
+    .brand{padding:0 10px 0 0;width:100%}
+    .nav{flex-direction:row;flex-wrap:wrap;flex:1}
+    .nav button{width:auto;padding:9px 11px;font-size:13px}
+    .nav button .em{width:auto}
+    .nav .sep,.side-foot{display:none}
+    .form-grid{grid-template-columns:1fr}
+    .top{padding:12px 16px}
+    .search{order:3;flex:1 1 100%}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img src="/assets/sidee-logo.png" alt="">
+      <div><b>Sidee Enhanced</b><span>Your TV, your apps</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-view="apps" class="active"><span class="em">🏠</span> My Apps</button>
+      <button data-view="catalog"><span class="em">🧩</span> App Catalog</button>
+      <button data-view="builder"><span class="em">🖥️</span> Dashboard Builder</button>
+      <button data-view="media"><span class="em">🎬</span> Local Media</button>
+      <button data-view="settings"><span class="em">⚙️</span> Settings</button>
+      <div class="sep"></div>
+      <button data-view="connect"><span class="em">📺</span> Connect TV / Setup</button>
+    </nav>
+    <div class="side-foot">
+      Local only · MQTT/TLS :36669 · PIN pairing<br>
+      <a href="/setup?key=" id="classicLink">Open classic setup</a> ·
+      <a href="KOFI_URL_PLACEHOLDER" id="kofi" target="_blank" rel="noopener">Support ☕</a>
+      <br><span id="version"></span>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <div class="status" id="status"><span class="dot"></span><span id="statusText">Checking TV…</span></div>
+      <span class="spacer"></span>
+      <div class="search" title="Search the app catalog">
+        <span>🔍</span><input id="search" type="text" placeholder="Search apps…" aria-label="Search the app catalog">
+      </div>
+      <button class="btn ghost sm" id="btnPhone">📱 Use your phone</button>
+      <button class="btn violet sm" id="btnPreview" data-tip="Temporarily show your dashboard on the TV">▶ Preview on TV</button>
+      <button class="btn primary sm" id="btnAdd">+ Add app</button>
+    </header>
+
+    <div class="content">
+
+      <!-- ================= MY APPS ================= -->
+      <section class="view active" data-view="apps">
+        <div class="head">
+          <div><div class="eyebrow">Your launcher</div>
+            <h1 class="title">My Apps</h1>
+            <p class="sub">Everything here can be added to your hosted dashboard or installed as a
+              permanent tile on the TV. Drag to reorder, click a tile to edit.</p></div>
+          <div class="row">
+            <button class="btn" id="btnInstallAll" data-tip="Install every app as its own TV tile">Install all on TV</button>
+            <button class="btn primary" id="btnAdd2">+ Custom URL</button>
+          </div>
+        </div>
+        <div class="callout">
+          <div class="big">📌</div>
+          <div><b>Install on TV = works without this computer.</b>
+            <p class="hint">"Install on TV" registers a launcher tile directly on your VIDAA TV over
+            MQTT/TLS. Once installed, the tile stays on your TV and opens the app even when Sidee is
+            switched off. The hosted <code>/dashboard</code> page is an alternative single tile that
+            needs Sidee running.</p></div>
+        </div>
+        <div class="toolbar">
+          <span class="pill" id="appCount">0 apps</span>
+          <span class="pill" id="installedCount">0 installed on TV</span>
+          <span class="pill" title="Order is saved to custom_apps.json">↕ Drag tiles to reorder</span>
+        </div>
+        <div id="appsGrid" class="grid-cards"></div>
+        <div id="appsEmpty" class="empty-state" hidden>
+          <div class="big">🗂️</div><p>No apps yet.</p>
+          <p class="hint">Add one from the App Catalog, or paste any URL with "+ Custom URL".</p>
+        </div>
+        <p class="footnote">Tile order, names, URLs and icons are saved to
+          <code>~/.sidee/custom_apps.json</code>. Deleting here removes it from your dashboard list;
+          a tile already installed on the TV is removed from the TV's Home screen.</p>
+      </section>
+
+      <!-- ================= CATALOG ================= -->
+      <section class="view" data-view="catalog">
+        <div class="head">
+          <div><div class="eyebrow">One-click apps</div>
+            <h1 class="title">App Catalog</h1>
+            <p class="sub">A curated starting point — pick an app and add it, or add &amp; install it
+              on the TV straight away. Use the search bar above to filter.</p></div>
+        </div>
+        <div id="catalogWrap"></div>
+      </section>
+
+      <!-- ================= DASHBOARD BUILDER ================= -->
+      <section class="view" data-view="builder">
+        <div class="head">
+          <div><div class="eyebrow">Full-screen launcher</div>
+            <h1 class="title">Dashboard Builder</h1>
+            <p class="sub">Generate a TV-friendly, remote-navigable page that shows all your apps as
+              large tiles. Install it as a single tile, or use "Preview on TV" to try it first.</p></div>
+        </div>
+        <div class="callout">
+          <div class="big">🖥️</div>
+          <div><b>Your dashboard address</b>
+            <p class="code" id="dashUrl">—</p>
+            <p class="hint">Open this on the TV browser, or install it as one launcher tile below.
+              It requires Sidee to be running (it is served locally).</p></div>
+        </div>
+        <div class="row" style="margin-bottom:20px">
+          <button class="btn primary" id="btnOpenDash" data-tip="Open the full-screen TV dashboard">Open dashboard ↗</button>
+          <button class="btn violet" id="btnInstallDash" data-tip="Install the dashboard as a single TV tile">Install dashboard as one tile</button>
+          <button class="btn" id="btnPreviewDash">▶ Preview on TV</button>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <h2>Appearance</h2>
+          <p class="hint">Dark by default, tuned for 1080p and 4K screens. Accent colours apply instantly.</p>
+          <div class="form-grid" style="margin-top:16px">
+            <div class="field"><label>Dashboard title</label><input id="cfgTitle" type="text" maxlength="24"></div>
+            <div class="field"><label>Theme</label>
+              <select id="cfgTheme"><option value="dark">Dark</option><option value="midnight">Midnight</option><option value="light">Light</option></select></div>
+            <div class="field"><label>Columns (tiles per row)</label>
+              <input id="cfgColumns" type="number" min="2" max="8"></div>
+            <div class="field"><label>Tile style</label>
+              <select id="cfgTileStyle"><option value="rounded">Rounded</option><option value="square">Square</option><option value="glass">Glass</option></select></div>
+          </div>
+          <div class="row" style="gap:22px">
+            <div><label>Accent</label><div class="swatches" id="accentSwatches"></div></div>
+            <div><label>Secondary glow</label><div class="swatches" id="accent2Swatches"></div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <h2>Top widgets</h2>
+          <p class="hint">Clock and date are computed on the TV — no cloud service or telemetry.
+            Weather is a text widget you can set yourself.</p>
+          <div class="toggles" style="margin-top:16px" id="cfgToggles"></div>
+          <div class="field" style="margin-top:14px;max-width:320px"><label>Weather text (e.g. 24°C · Clear)</label>
+            <input id="cfgWeather" type="text" maxlength="60"></div>
+        </div>
+        <button class="btn primary" id="btnSaveCfg">Save dashboard settings</button>
+      </section>
+
+      <!-- ================= LOCAL MEDIA ================= -->
+      <section class="view" data-view="media">
+        <div class="head">
+          <div><div class="eyebrow">No Plex required</div>
+            <h1 class="title">Local Media</h1>
+            <p class="sub">Point Sidee at a folder of videos on this computer and it will stream them
+              to your TV with a simple HTML5 player. Matching .srt subtitles load automatically.</p></div>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <h2>Media folder</h2>
+          <p class="hint">Absolute path to a folder containing MP4, MKV or WebM files. A symlink is
+            created at <code>~/.sidee/media</code>. Nothing is uploaded anywhere.</p>
+          <div class="row" style="margin-top:14px">
+            <input id="mediaPath" type="text" placeholder="/home/me/Videos" style="flex:1;min-width:220px">
+            <button class="btn primary" id="btnScan">Scan folder</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <span class="pill" id="mediaCount">0 videos</span>
+          <button class="btn sm" id="btnOpenPlayer">▶ Open player</button>
+        </div>
+        <div id="mediaList"></div>
+        <p class="footnote">Playback depends on your TV browser's codecs: MP4 (H.264) and WebM work
+          most broadly; MKV may not play in every browser. Subtitles use a matching .srt/.vtt file in
+          the same folder, converted to WebVTT on the fly.</p>
+      </section>
+
+      <!-- ================= SETTINGS ================= -->
+      <section class="view" data-view="settings">
+        <div class="head"><div><div class="eyebrow">Backup &amp; options</div>
+          <h1 class="title">Settings</h1>
+          <p class="sub">Back up or share your whole setup, and control how Sidee starts.</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <h2>Import / Export configuration</h2>
+          <p class="hint">One JSON file contains your tiles, custom URLs, icons, dashboard layout and
+            colours. Share it with another device, or keep a backup.</p>
+          <div class="row" style="margin-top:14px">
+            <button class="btn primary" id="btnExport">⬇ Export setup</button>
+            <label class="btn" style="cursor:pointer">⬆ Import file<input id="importFile" type="file" accept="application/json,.json" hidden></label>
+            <button class="btn ghost sm" id="btnMerge">Import as merge</button>
+          </div>
+          <div class="field" style="margin-top:16px"><label>Or paste a config JSON</label>
+            <textarea id="importText" placeholder='{"format":"sidee-enhanced/config", …}'></textarea></div>
+          <div class="row"><button class="btn" id="btnImportText">Import pasted config</button></div>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <h2>Startup</h2>
+          <p class="hint">Supported on Windows (Startup folder) and macOS (Login Item / LaunchAgent).</p>
+          <div class="toggles" style="margin-top:14px">
+            <div class="toggle"><span>Launch Sidee at login<br><small class="hint" id="autostartNote"></small></span>
+              <button class="switch" id="swAutostart" role="switch" aria-label="Launch at login"></button></div>
+            <div class="toggle"><span>Keep Alive (restart on crash)</span>
+              <button class="switch" id="swKeepAlive" role="switch" aria-label="Keep alive"></button></div>
+          </div>
+          <p class="hint" style="margin-top:12px">Keep Alive is applied by launching with
+            <code>python sidee.py --keep-alive</code> (or the bundled runtime). Server port preference:
+            <input id="cfgPort" type="number" min="0" max="65535" style="width:110px;display:inline-block;min-height:34px"></p>
+        </div>
+        <div class="card">
+          <h2>Privacy &amp; security</h2>
+          <p class="hint">All TV communication stays on your local network over MQTT/TLS port 36669.
+            Pairing always requires the PIN shown on the TV. Dashboard access is protected by the
+            private key in its URL. There is no telemetry, account or cloud service. Custom URLs are
+            opened by the TV — only add addresses you trust.</p>
+        </div>
+      </section>
+
+      <!-- ================= CONNECT / ONBOARDING ================= -->
+      <section class="view" data-view="connect">
+        <div class="head"><div><div class="eyebrow">First-time setup</div>
+          <h1 class="title">Connect your TV</h1>
+          <p class="sub">Three quick steps. Everything happens on your home network.</p></div>
+          <button class="btn ghost sm" id="btnSkipWizard">Skip / close wizard</button></div>
+        <div class="steps" id="wizardSteps">
+          <div class="step active" data-step="1"><div class="n">Step 1</div><h3>Find your TV</h3>
+            <p>Turn the TV on and keep it on the same network. Auto-discovery finds it.</p></div>
+          <div class="step" data-step="2"><div class="n">Step 2</div><h3>Pair with PIN</h3>
+            <p>Enter the 4-digit code shown on your TV screen.</p></div>
+          <div class="step" data-step="3"><div class="n">Step 3</div><h3>Add your first apps</h3>
+            <p>Pick a few popular apps, or paste any URL.</p></div>
+        </div>
+
+        <div class="card" style="margin-bottom:18px">
+          <h2>1 · Find TV</h2>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="btnFindTv">🔎 Find TV</button>
+            <input id="manualIp" type="text" placeholder="Or TV IP, e.g. 192.168.1.50" style="flex:1;min-width:190px">
+            <button class="btn" id="btnCheckIp">Check IP</button>
+          </div>
+          <div id="tvList" style="margin-top:12px"></div>
+          <p class="hint" id="findMsg">No TV selected yet.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:18px">
+          <h2>2 · Pair with PIN</h2>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="btnRequest">Request code</button>
+            <input id="pin" type="text" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" style="width:150px">
+            <button class="btn" id="btnPair">Confirm code</button>
+          </div>
+          <p class="hint" id="pairMsg" style="margin-top:10px">Find your TV first, then request a code.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:18px">
+          <h2>3 · Add your first apps</h2>
+          <p class="hint">Popular choices — click to add to My Apps. You can install them on the TV
+            afterwards from the My Apps tab.</p>
+          <div class="cat-grid" id="popular" style="margin-top:14px"></div>
+          <div class="row" style="margin-top:14px"><button class="btn" id="btnAddFirst">+ Paste my own URL</button>
+            <button class="btn ghost" id="btnDoneWizard">Done ✓</button></div>
+        </div>
+
+        <div class="card">
+          <h2>Use your phone</h2>
+          <p class="hint">Scan the locally generated QR code to open this dashboard on a phone on the
+            same network. Keep the link (and its access key) private.</p>
+          <div class="qrbox" style="margin-top:14px">
+            <img id="qr" alt="QR code" hidden>
+            <div><a id="phoneUrl" class="code" href="#" target="_blank" rel="noopener"></a>
+              <p class="hint" id="qrMsg">Preparing your QR code…</p></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADD / EDIT MODAL ============ -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="App details">
+    <button class="x" id="btnCloseModal" aria-label="Close">✕</button>
+    <h2 id="modalTitle">Add a custom app</h2>
+    <p class="hint" id="modalSub">Paste any web address — any domain is allowed.</p>
+    <div class="warn" id="trustWarn">⚠️ <span>Make sure you trust this URL. It will be accessible from your TV.</span></div>
+    <div class="form-grid">
+      <div class="field"><label>Name</label><input id="fName" type="text" maxlength="40" placeholder="My Plex"></div>
+      <div class="field"><label>Category</label>
+        <select id="fCategory"></select></div>
+    </div>
+    <div class="field"><label>URL</label>
+      <input id="fUrl" type="text" placeholder="https://app.plex.tv or http://192.168.1.50:8080"></div>
+    <div class="field"><label>Icon — pick from the built-in library</label>
+      <div class="icon-picker" id="iconPicker"></div></div>
+    <div class="form-grid" style="margin-top:14px">
+      <div class="field"><label>Or upload an image</label>
+        <input id="fIconFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></div>
+      <div class="field"><label>Or an https icon URL</label>
+        <input id="fIconUrl" type="text" placeholder="https://…/icon.png"></div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn ghost sm" id="btnClearIcon">Use built-in icon</button>
+      <span class="pill" id="iconPreview">🌐 Globe</span>
+    </div>
+    <div class="row" style="margin-top:22px;justify-content:flex-end">
+      <button class="btn ghost" id="btnCancelModal">Cancel</button>
+      <button class="btn primary" id="btnSaveApp">Save app</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const KEY = new URLSearchParams(location.search).get("key") || "";
+  const q = extra => "?" + new URLSearchParams(Object.assign({key: KEY}, extra || {}));
+  const api = (path, extra) => path + q(extra);
+  let S = {apps:[], catalog:{}, icons:{}, config:{}, status:{}, autostart:{},
+           dashboard_url:"", trust_warning:"", media:{videos:[], root:""}, version:""};
+  let editing = null;              // app id when editing, null when adding
+  let form = {icon:"globe", image:"", color:"#3d7bfd"};
+  let selectedTv = null, pairingId = null;
+  let toastTimer = null;
+
+  async function get(path, extra) {
+    const r = await fetch(api(path, extra));
+    if (!r.ok) throw new Error("Sidee is unavailable. Reopen the link printed at startup.");
+    return r.json();
+  }
+  async function post(path, data) {
+    const r = await fetch(api(path), {method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data || {})});
+    if (!r.ok) throw new Error("Sidee is unavailable. Reopen the link printed at startup.");
+    return r.json();
+  }
+  function toast(msg, kind="") {
+    const t = $("toast"); t.textContent = msg; t.className = "show " + kind;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "", 4200);
+  }
+  function esc(s){return String(s==null?"":s).replace(/[<>&"']/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c]));}
+  function art(app, small) {
+    if (app.image && (app.image.startsWith("data:") || app.image.startsWith("/icons/")
+        || app.image.startsWith("https://") || app.image.startsWith("http://")))
+      return '<img src="'+esc(app.image)+'" alt="">';
+    const ic = S.icons[app.icon] || {glyph:"🌐", color:"#3d7bfd"};
+    return ic.glyph;
+  }
+  function artStyle(app){ return 'background:'+esc(app.color||"#22283a")+'55'; }
+
+  // ---------- navigation ----------
+  function showView(name) {
+    document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.dataset.view===name));
+    document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view===name));
+    if (name === "catalog") renderCatalog();
+    if (name === "builder") renderBuilder();
+    if (name === "connect") loadQR();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+  $("nav").addEventListener("click", e => {
+    const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view);
+  });
+  $("btnPhone").onclick = () => showView("connect");
+  $("search").addEventListener("input", () => { showView("catalog"); renderCatalog(); });
+  $("classicLink").href = api("/setup");
+
+  // ---------- status ----------
+  function renderStatus() {
+    const s = S.status || {};
+    const ok = s.paired && s.state === "ok";
+    $("status").classList.toggle("on", ok);
+    $("statusText").textContent = ok ? ("TV paired · " + (s.host||"")) :
+      (s.state === "expired" ? "Pairing expired — reconnect" : "TV not paired");
+    $("btnPreview").disabled = !ok;
+  }
+
+  // ---------- My Apps ----------
+  function renderApps() {
+    const grid = $("appsGrid"); grid.replaceChildren();
+    $("appsEmpty").hidden = S.apps.length > 0;
+    $("appCount").textContent = S.apps.length + " app" + (S.apps.length===1?"":"s");
+    $("installedCount").textContent = S.apps.filter(a=>a.installed).length + " installed on TV";
+    S.apps.forEach(app => {
+      const el = document.createElement("div");
+      el.className = "tile"; el.draggable = true; el.dataset.id = app.id;
+      el.innerHTML =
+        '<span class="cat">'+esc(app.category)+'</span>'+
+        '<div class="toprow"><div class="art" style="'+artStyle(app)+'">'+art(app)+'</div>'+
+        '<div style="min-width:0;flex:1"><div class="nm">'+esc(app.name)+'</div>'+
+        '<div class="url" title="'+esc(app.url)+'">'+esc(app.url)+'</div></div></div>'+
+        '<div class="row"><span class="pill '+(app.installed?"on":"")+'">'+
+          (app.installed?"✓ on TV":"not installed")+'</span><span class="grip" title="Drag to reorder">⠿</span></div>'+
+        '<div class="actions">'+
+          '<button class="btn primary sm" data-act="install">📲 Install on TV</button>'+
+          '<button class="btn sm" data-act="open">Open ↗</button>'+
+          '<button class="btn sm" data-act="edit">Edit</button>'+
+          '<button class="btn sm danger" data-act="del">🗑</button>'+
+        '</div>';
+      el.addEventListener("click", e => {
+        const act = e.target.closest("[data-act]");
+        if (!act) return;
+        e.stopPropagation();
+        const a = act.dataset.act;
+        if (a === "install") installApp(app.id);
+        else if (a === "open") window.open(app.url, "_blank", "noopener");
+        else if (a === "edit") openModal(app);
+        else if (a === "del") deleteApp(app.id);
+      });
+      // drag & drop reorder
+      el.addEventListener("dragstart", e => { el.classList.add("dragging"); e.dataTransfer.setData("text/plain", app.id); });
+      el.addEventListener("dragend", () => el.classList.remove("dragging"));
+      el.addEventListener("dragover", e => { e.preventDefault(); el.classList.add("dragover"); });
+      el.addEventListener("dragleave", () => el.classList.remove("dragover"));
+      el.addEventListener("drop", async e => {
+        e.preventDefault(); el.classList.remove("dragover");
+        const from = e.dataTransfer.getData("text/plain"); if (!from || from===app.id) return;
+        const ids = S.apps.map(x=>x.id);
+        ids.splice(ids.indexOf(from),1); ids.splice(ids.indexOf(app.id),0,from);
+        const r = await post("/api/apps/reorder", {ids});
+        if (r.ok) { S.apps = r.apps; renderApps(); toast("Order saved", "ok"); }
+      });
+      grid.appendChild(el);
+    });
+  }
+
+  async function installApp(id) {
+    toast("Installing on your TV… this can take ~20 seconds");
+    try {
+      const r = await post("/api/apps/install", {id});
+      if (r.ok) { toast(r.message || "Installed on your TV ✓", "ok"); }
+      else if (r.needs_pairing) { toast("Pair your TV first (Connect TV tab).", "err"); showView("connect"); }
+      else toast(r.error || r.message || "The TV did not confirm this tile.", "err");
+      S.apps = r.apps || S.apps; renderApps();
+    } catch (e) { toast(e.message, "err"); }
+  }
+  async function deleteApp(id) {
+    if (!confirm("Remove this app from your Sidee list?")) return;
+    const r = await post("/api/apps/delete", {id});
+    if (r.ok) { S.apps = r.apps; renderApps(); toast("App removed", "ok"); }
+  }
+  $("btnInstallAll").onclick = async () => {
+    if (!S.apps.length) return toast("Add some apps first.", "err");
+    if (!confirm("Install all " + S.apps.length + " apps as individual tiles on your TV?")) return;
+    toast("Installing all apps on your TV…");
+    const r = await post("/api/apps/install_all", {});
+    if (r.ok) { S.apps = r.apps || S.apps; renderApps();
+      toast("Installed " + r.installed + "/" + r.total + " tiles.", "ok"); }
+    else toast(r.error || "Install failed.", "err");
+  };
+
+  // ---------- Catalog ----------
+  const CAT_EMOJI = {Featured:"⭐",Streaming:"🎬",Music:"🎵",Utilities:"🛠️",Media:"🗄️",Gaming:"🎮",Productivity:"📝"};
+  function renderCatalog() {
+    const term = ($("search").value || "").trim().toLowerCase();
+    const wrap = $("catalogWrap"); wrap.replaceChildren();
+    let shown = 0;
+    for (const [cat, apps] of Object.entries(S.catalog)) {
+      const match = apps.filter(a => !term || (a.name+" "+a.description+" "+cat).toLowerCase().includes(term));
+      if (!match.length) continue;
+      const g = document.createElement("div"); g.className = "catgroup";
+      g.innerHTML = "<h3>"+(CAT_EMOJI[cat]||"•")+" "+esc(cat)+"</h3>";
+      const grid = document.createElement("div"); grid.className = "cat-grid";
+      match.forEach(a => {
+        const c = document.createElement("div"); c.className = "cat-card";
+        const ic = S.icons[a.icon] || {glyph:"🌐", color:"#3d7bfd"};
+        c.innerHTML =
+          '<div class="art" style="background:'+esc(a.color)+'55">'+ic.glyph+'</div>'+
+          '<div class="nm">'+esc(a.name)+'</div><div class="ds">'+esc(a.description)+'</div>'+
+          (a.needs_server ? '<input type="text" class="srv" placeholder="'+esc(a.server_placeholder||"Server address")+'">' : "")+
+          '<div class="row"><button class="btn primary sm" data-act="add">+ Add</button>'+
+          '<button class="btn sm" data-act="install">Add &amp; Install</button></div>';
+        c.querySelector('[data-act="add"]').onclick = () => addCatalog(a, c.querySelector(".srv"), false);
+        c.querySelector('[data-act="install"]').onclick = () => addCatalog(a, c.querySelector(".srv"), true);
+        grid.appendChild(c);
+      });
+      g.appendChild(grid); wrap.appendChild(g); shown += match.length;
+    }
+    if (!shown) wrap.innerHTML = '<div class="empty-state"><div class="big">🔍</div><p>No apps match “'+esc(term)+'”.</p></div>';
+  }
+  async function addCatalog(a, input, install) {
+    const server = input ? input.value.trim() : "";
+    try {
+      const r = await post("/api/apps/add", {catalog_id:a.id, server});
+      if (!r.ok) return toast(r.error || "Could not add app.", "err");
+      S.apps = r.apps;
+      if (install) { await installApp(r.app.id); } else { renderApps(); toast(a.name + " added to My Apps", "ok"); }
+    } catch (e) { toast(e.message, "err"); }
+  }
+
+  // ---------- Add / Edit modal ----------
+  function buildIconPicker() {
+    const p = $("iconPicker"); p.replaceChildren();
+    for (const [id, ic] of Object.entries(S.icons)) {
+      const b = document.createElement("button");
+      b.className = "icon-opt" + (form.icon===id?" sel":"");
+      b.textContent = ic.glyph; b.title = ic.label; b.dataset.id = id;
+      b.onclick = () => { form.icon = id; form.image = ""; buildIconPicker(); updateIconPreview(); };
+      p.appendChild(b);
+    }
+  }
+  function updateIconPreview() {
+    const ic = S.icons[form.icon] || {label:"Globe", glyph:"🌐"};
+    $("iconPreview").textContent = (form.image ? "🖼️ Uploaded / URL" : ic.glyph + " " + ic.label);
+  }
+  function openModal(app) {
+    editing = app ? app.id : null;
+    form = {icon: app?app.icon:"globe", image: app?app.image:"", color: app?app.color:"#3d7bfd"};
+    $("modalTitle").textContent = app ? "Edit app" : "Add a custom app";
+    $("modalSub").textContent = app ? "Change the name, URL or icon." : "Paste any web address — any domain is allowed.";
+    $("trustWarn").hidden = false;
+    $("fName").value = app ? app.name : "";
+    $("fUrl").value = app ? app.url : "";
+    $("fCategory").value = app && [...$("fCategory").options].some(o=>o.value===app.category) ? app.category : "Custom";
+    $("fIconUrl").value = app && app.image.startsWith("http") ? app.image : "";
+    $("fIconFile").value = "";
+    buildIconPicker(); updateIconPreview();
+    $("overlay").hidden = false;
+    setTimeout(()=>$("fName").focus(), 50);
+  }
+  function closeModal(){ $("overlay").hidden = true; }
+  $("btnAdd").onclick = $("btnAdd2").onclick = $("btnAddFirst").onclick = () => openModal(null);
+  $("btnCloseModal").onclick = $("btnCancelModal").onclick = closeModal;
+  $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeModal(); });
+  $("btnClearIcon").onclick = () => { form.image=""; $("fIconUrl").value=""; $("fIconFile").value=""; buildIconPicker(); updateIconPreview(); };
+  $("fIconUrl").addEventListener("input", e => { if (e.target.value.trim()) { form.image = e.target.value.trim(); updateIconPreview(); } });
+  $("fIconFile").addEventListener("change", async e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (file.size > 400000) return toast("Icons must be under 400 KB", "err");
+    const dataUrl = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(file); });
+    const b64 = dataUrl.split(",")[1];
+    try {
+      const r = await post("/api/icon/upload", {name:file.name, data:b64});
+      if (r.ok) { form.image = r.image; $("fIconUrl").value=""; updateIconPreview(); toast("Icon uploaded", "ok"); }
+      else toast(r.error || "Upload failed", "err");
+    } catch (err) { toast(err.message, "err"); }
+  });
+  $("btnSaveApp").onclick = async () => {
+    const payload = {name:$("fName").value.trim(), url:$("fUrl").value.trim(),
+      category:$("fCategory").value, icon:form.icon, image:$("fIconUrl").value.trim() || form.image,
+      color:form.color};
+    if (!payload.name) return toast("Give the app a name.", "err");
+    if (!payload.url) return toast("Enter a URL.", "err");
+    try {
+      const r = editing ? await post("/api/apps/update", Object.assign({id:editing}, payload))
+                        : await post("/api/apps/add", payload);
+      if (!r.ok) return toast(r.error || "Could not save.", "err");
+      S.apps = r.apps; renderApps(); closeModal();
+      toast(editing ? "App updated ✓" : "App added ✓ — install it on the TV with the tile button.", "ok");
+      if (!editing && payload.url && S.trust_warning) toast(S.trust_warning, "");
+    } catch (e) { toast(e.message, "err"); }
+  };
+
+  // ---------- Dashboard builder ----------
+  const SWATCHES = ["#ffe600","#7c5cff","#39c07a","#ff5c8a","#37a9e0","#ff8a3d","#ffffff","#e50914"];
+  function swatchRow(host, key, value) {
+    host.replaceChildren();
+    SWATCHES.forEach(c => {
+      const b = document.createElement("button");
+      b.className = "swatch" + (value===c?" sel":""); b.style.background = c; b.title = c;
+      b.onclick = () => { S.config[key]=c; swatchRow(host,key,c); };
+      host.appendChild(b);
+    });
+  }
+  const TOGGLES = [["show_clock","Clock"],["show_date","Date"],["show_weather","Weather widget"],["show_labels","Tile labels"]];
+  function renderBuilder() {
+    const c = S.config;
+    $("dashUrl").textContent = S.dashboard_url || "—";
+    $("cfgTitle").value = c.title || "My TV"; $("cfgTheme").value = c.theme || "dark";
+    $("cfgColumns").value = c.columns || 4; $("cfgTileStyle").value = c.tile_style || "rounded";
+    $("cfgWeather").value = c.weather_text || ""; $("cfgPort").value = c.port;
+    swatchRow($("accentSwatches"), "accent", c.accent);
+    swatchRow($("accent2Swatches"), "accent2", c.accent2);
+    const t = $("cfgToggles"); t.replaceChildren();
+    TOGGLES.forEach(([k,label]) => {
+      const d = document.createElement("div"); d.className="toggle";
+      d.innerHTML = "<span>"+label+"</span>";
+      const b = document.createElement("button");
+      b.className = "switch" + (c[k]?" on":""); b.setAttribute("role","switch");
+      b.onclick = () => { c[k]=!c[k]; b.classList.toggle("on", c[k]); };
+      d.appendChild(b); t.appendChild(d);
+    });
+  }
+  async function saveConfig(extra) {
+    const patch = Object.assign({
+      title:$("cfgTitle").value, theme:$("cfgTheme").value,
+      columns:parseInt($("cfgColumns").value,10), tile_style:$("cfgTileStyle").value,
+      weather_text:$("cfgWeather").value, port:parseInt($("cfgPort").value,10),
+      accent:S.config.accent, accent2:S.config.accent2,
+      show_clock:S.config.show_clock, show_date:S.config.show_date,
+      show_weather:S.config.show_weather, show_labels:S.config.show_labels
+    }, extra||{});
+    const r = await post("/api/dashboard/config", patch);
+    if (r.ok) { S.config = r.config; toast("Dashboard settings saved ✓", "ok"); }
+    else toast(r.error || "Could not save", "err");
+    return r;
+  }
+  $("btnSaveCfg").onclick = () => saveConfig();
+  $("btnOpenDash").onclick = () => window.open(api("/dashboard"), "_blank", "noopener");
+  $("btnInstallDash").onclick = async () => {
+    toast("Installing dashboard as a TV tile…");
+    const r = await post("/api/dashboard/install", {});
+    if (r.ok) toast("Dashboard tile installed ✓ — open Home on your TV.", "ok");
+    else if (r.needs_pairing) { toast("Pair your TV first.", "err"); showView("connect"); }
+    else toast(r.error || r.message || "Install not confirmed.", "err");
+  };
+  $("btnPreviewDash").onclick = $("btnPreview").onclick = async () => {
+    toast("Showing dashboard on your TV…");
+    const r = await post("/api/preview", {});
+    if (r.ok) toast("Preview sent to the TV ✓", "ok");
+    else if (r.needs_pairing) { toast("Pair your TV first.", "err"); showView("connect"); }
+    else toast(r.error || "Preview failed.", "err");
+  };
+
+  // ---------- Media ----------
+  function renderMedia() {
+    const vids = S.media.videos || [];
+    $("mediaCount").textContent = vids.length + " video" + (vids.length===1?"":"s");
+    $("mediaPath").value = S.media.root || "";
+    const list = $("mediaList"); list.replaceChildren();
+    if (!vids.length) { list.innerHTML = '<div class="empty-state"><div class="big">🎞️</div><p>No videos scanned yet. Set a folder above.</p></div>'; return; }
+    vids.forEach(v => {
+      const d = document.createElement("div"); d.className="media-item";
+      d.innerHTML = '<span class="pill">'+esc(v.ext.replace(".","").toUpperCase())+'</span>'+
+        '<span class="grow">'+esc(v.title)+'</span>'+
+        '<span class="hint">'+(v.size/1048576).toFixed(0)+' MB</span>'+
+        (v.subtitle?'<span class="pill on">CC</span>':'')+
+        '<a class="btn sm" target="_blank" rel="noopener" href="'+esc(api("/player"))+'#f='+encodeURIComponent(v.file)+'">▶ Play</a>';
+      list.appendChild(d);
+    });
+  }
+  $("btnScan").onclick = async () => {
+    const r = await post("/api/media/scan", {path:$("mediaPath").value.trim()});
+    if (r.ok) { S.media = {videos:r.videos, root:r.root}; renderMedia(); toast("Found "+r.videos.length+" videos", "ok"); }
+    else toast(r.error || "Could not scan that folder", "err");
+  };
+  $("btnOpenPlayer").onclick = () => window.open(api("/player"), "_blank", "noopener");
+
+  // ---------- Settings ----------
+  $("btnExport").onclick = async () => {
+    const data = await get("/api/config/export");
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "sidee-enhanced-config.json"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    toast("Setup exported", "ok");
+  };
+  async function importConfig(obj, merge) {
+    const r = await post("/api/config/import", {config:obj, merge:!!merge});
+    if (r.ok) { await refresh(); toast("Imported "+r.apps+" apps and "+r.icons+" icons ✓", "ok"); }
+    else toast(r.error || "Import failed", "err");
+  }
+  $("importFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { await importConfig(JSON.parse(await f.text()), $("btnMerge").dataset.merge==="1"); }
+    catch (_) { toast("That file is not valid JSON.", "err"); }
+    e.target.value = "";
+  });
+  $("btnMerge").onclick = e => {
+    const on = e.currentTarget.dataset.merge !== "1";
+    e.currentTarget.dataset.merge = on ? "1" : "0";
+    e.currentTarget.classList.toggle("primary", on);
+    toast(on ? "Next import will merge with existing apps" : "Next import will replace all apps");
+  };
+  $("btnImportText").onclick = async () => {
+    try { await importConfig(JSON.parse($("importText").value), $("btnMerge").dataset.merge==="1"); }
+    catch (_) { toast("Paste a valid Sidee config JSON first.", "err"); }
+  };
+  $("swAutostart").onclick = async () => {
+    const want = !S.autostart.autostart;
+    const r = await post("/api/autostart", {enabled:want});
+    S.autostart = r; renderAutostart();
+    toast(r.ok ? (want?"Launch at login enabled":"Launch at login disabled") : (r.error||"Not supported"), r.ok?"ok":"err");
+  };
+  $("swKeepAlive").onclick = async () => {
+    const r = await post("/api/keepalive", {enabled:!S.autostart.keep_alive});
+    S.autostart = r; renderAutostart(); toast("Keep Alive "+(r.keep_alive?"enabled":"disabled"), "ok");
+  };
+  $("cfgPort").addEventListener("change", () => saveConfig());
+  function renderAutostart() {
+    const a = S.autostart || {};
+    $("swAutostart").classList.toggle("on", !!a.autostart);
+    $("swKeepAlive").classList.toggle("on", !!a.keep_alive);
+    $("autostartNote").textContent = a.supported ? "" : "(not supported on this platform)";
+  }
+
+  // ---------- Connect / onboarding / QR ----------
+  function setStep(n) {
+    document.querySelectorAll("#wizardSteps .step").forEach(s =>
+      s.classList.toggle("active", +s.dataset.step === n));
+  }
+  function renderTvList(tvs) {
+    const box = $("tvList"); box.replaceChildren();
+    tvs.forEach(t => {
+      const d = document.createElement("div"); d.className="dev";
+      d.innerHTML = '<span>📺 '+esc(t.friendly_name||"VIDAA TV")+' · '+esc(t.host)+'</span>';
+      const b = document.createElement("button"); b.className="btn primary sm"; b.textContent="Select";
+      b.onclick = () => { selectedTv=t; $("findMsg").textContent="Selected "+t.friendly_name+" ("+t.host+"). Request a code next.";
+        setStep(2); loadQR(); };
+      d.appendChild(b); box.appendChild(d);
+    });
+  }
+  $("btnFindTv").onclick = async () => {
+    $("findMsg").textContent = "Looking for your TV on the local network…";
+    const r = await get("/api/discover");
+    if (r.ok && r.tvs && r.tvs.length) { renderTvList(r.tvs);
+      $("findMsg").textContent = "Found "+r.tvs.length+" TV(s). Select one."; }
+    else $("findMsg").textContent = r.error || "No TV found. Check both devices share the same network, or enter the TV IP below.";
+  };
+  $("btnCheckIp").onclick = async () => {
+    const host = $("manualIp").value.trim(); if (!host) return toast("Enter your TV's IP address.", "err");
+    const r = await post("/api/tv/check", {host});
+    if (r.ok && r.tv) { renderTvList([r.tv]); $("findMsg").textContent = r.message || "TV verified."; }
+    else $("findMsg").textContent = r.error || "Could not verify that TV.";
+  };
+  $("btnRequest").onclick = async () => {
+    if (!selectedTv) return toast("Find and select your TV first.", "err");
+    const r = await post("/api/pair/start", {host:selectedTv.host});
+    if (r.ok && r.pairing_id) { pairingId=r.pairing_id; setStep(2);
+      $("pairMsg").textContent="A 4-digit code is on your TV. Enter it and click Confirm code."; }
+    else $("pairMsg").textContent = r.error || "The TV did not show a code. Try again.";
+  };
+  $("btnPair").onclick = async () => {
+    if (!pairingId) return toast("Request a code first.", "err");
+    const pin = $("pin").value.trim();
+    if (!/^[0-9]{4}$/.test(pin)) return toast("Enter the 4-digit PIN.", "err");
+    const r = await post("/api/pair", {pairing_id:pairingId, pin});
+    if (r.ok) { $("pairMsg").textContent="Your TV is paired ✓"; setStep(3); await refreshStatus(); }
+    else $("pairMsg").textContent = r.error || "Could not pair. Request a new code.";
+  };
+  $("btnSkipWizard").onclick = $("btnDoneWizard").onclick = async () => {
+    await post("/api/onboarded", {}); S.config.onboarded=true; showView("apps"); toast("Setup complete — enjoy!", "ok");
+  };
+  function renderPopular() {
+    const host = $("popular"); host.replaceChildren();
+    const ids = ["youtube","plex","spotify","netflix","jellyfin","twitch","homeassistant","speedtest"];
+    ids.forEach(id => {
+      const a = (S.catalog.Featured||[]).concat(...Object.values(S.catalog)).find(x=>x.id===id);
+      if (!a) return;
+      const ic = S.icons[a.icon]||{glyph:"🌐",color:"#3d7bfd"};
+      const c = document.createElement("div"); c.className="cat-card";
+      c.innerHTML = '<div class="art" style="background:'+esc(a.color)+'55">'+ic.glyph+'</div>'+
+        '<div class="nm">'+esc(a.name)+'</div><div class="ds">'+esc(a.description)+'</div>'+
+        '<button class="btn primary sm">+ Add</button>';
+      c.querySelector("button").onclick = async () => {
+        const r = await post("/api/apps/add", {catalog_id:a.id, server:""});
+        if (r.ok) { S.apps=r.apps; renderApps(); toast(a.name+" added ✓", "ok"); }
+        else toast(r.error||"Could not add", "err");
+      };
+      host.appendChild(c);
+    });
+  }
+  async function loadQR() {
+    try {
+      const r = await get("/api/phone", selectedTv ? {tv_host:selectedTv.host} : {});
+      if (r.ok) { $("qr").src=r.qr; $("qr").hidden=false;
+        $("phoneUrl").href=r.url; $("phoneUrl").textContent=r.url; $("qrMsg").hidden=true; }
+      else $("qrMsg").textContent = r.error || "QR code unavailable.";
+    } catch (e) { $("qrMsg").textContent = e.message; }
+  }
+
+  // ---------- bootstrap ----------
+  async function refreshStatus() {
+    try { S.status = await get("/api/status"); renderStatus(); }
+    catch (_) { $("statusText").textContent="Dashboard unreachable"; }
+  }
+  async function refresh() {
+    S = await get("/api/state");
+    $("version").textContent = "v"+S.version;
+    $("classicLink").href = api("/setup");
+    const sel = $("fCategory");
+    if (!sel.options.length) {
+      ["Custom"].concat(Object.keys(S.catalog)).forEach(c => {
+        const o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o);
+      });
+    }
+    renderStatus(); renderApps(); renderCatalog(); renderBuilder(); renderMedia();
+    renderAutostart(); renderPopular(); loadQR();
+    if (!S.config.onboarded) showView("connect");
+  }
+  $("kofi").href = "KOFI_URL_PLACEHOLDER";
+  refresh().then(refreshStatus).catch(e => toast("Could not load Sidee: " + e.message, "err"));
+})();
+</script>
+</body>
+</html>

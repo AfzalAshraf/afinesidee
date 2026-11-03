@@ -1,115 +1,254 @@
 <p align="center"><img src="assets/sidee-logo.png" width="180" alt="Sidee"></p>
 
-# Sidee
+# Sidee Enhanced
 
-**Your TV, your freedom.**
+**Your TV, your apps — installed on the TV itself.**
 
-Sidee is a free, open-source tool that helps people make more of the TVs they already own. Its simple browser dashboard lets you connect to a compatible TV and manage additional web-app launcher tiles, without coding, command-line setup, or specialist knowledge.
+Sidee Enhanced is a free, open-source (MIT) rework of [Sidee](https://github.com/Empi9245/Sidee).
+It turns the original "tile adder" into a full custom dashboard and open app launcher that anyone
+can use without coding. You can paste **any web URL**, give it a name and icon, arrange your apps
+by dragging, generate a TV-friendly full-screen launcher, and — most importantly — **install each
+app as a real, permanent tile on your VIDAA TV**.
 
-Sidee is built around three principles:
+A tile installed on the TV lives in the TV launcher: it keeps working even when Sidee and this
+computer are switched off. The hosted `/dashboard` page is an optional alternative that shows all
+your apps in one place (it needs Sidee running). You choose per app.
 
-- **Freedom and control:** Give people more choice over how they use their own devices.
-- **Accessibility:** Make the process straightforward, even for first-time users.
-- **Privacy and security:** Keep TV discovery and pairing on the local network, with authorization through the PIN shown on the TV.
+> **Important:** this is an independent project, not affiliated with TV manufacturers. Use it only
+> with devices you own or are authorised to manage.
+
+---
+
+## What's new
+
+| Phase | Feature |
+| --- | --- |
+| 1 | **Custom URL input** — paste any `http://` or `https://` address; only the URL *format* is validated, never the domain. Custom name, uploaded icon, or a built-in icon library. Saved to `~/.sidee/custom_apps.json`. A short trust warning is shown ("Make sure you trust this URL. It will be accessible from your TV.") but nothing is blocked. |
+| 1 | **Expanded catalog** — 35+ one-click apps in categories: Streaming, Music, Utilities, Media/NAS, Gaming, Productivity, plus the original Featured presets. Searchable. |
+| 2 | **Drag-and-drop tiles** — reorder, edit (name/URL/icon), delete. Order is persisted and synced. |
+| 2 | **Import / Export** — your whole setup (tiles, URLs, icons, dashboard layout, colours, widgets) in one JSON file. Merge or replace. |
+| 3 | **Custom dashboard generator** — a full-screen, dark, 1080p/4K-ready HTML page at `http://<computer-ip>:<port>/dashboard`. Large tiles, TV-remote navigation (arrows + Enter), clock/date/weather widgets, customisable accent colours. Installable as a single launcher tile. |
+| 4 | **Redesigned console** — sidebar (My Apps, App Catalog, Dashboard Builder, Local Media, Settings, Connect TV), card layout, search, tooltips, help text, working on desktop and mobile. The QR-code phone feature is kept. |
+| 4 | **Onboarding wizard** — first launch shows 3 steps: Find your TV → Pair with PIN → Add your first apps. |
+| 5 | **Local media** — scan a folder for MP4/MKV/WebM, stream it over the built-in server with an HTML5 player and automatic `.srt` subtitles (converted to WebVTT). |
+| 6 | **Auto-start / Keep Alive** — launch at login (Windows Startup folder / macOS LaunchAgent) and `--keep-alive` supervision that restarts the server after a crash. |
+| 6 | **Preview on TV** — temporarily open the dashboard on the TV without installing anything. |
+
+Everything runs locally. There is **no telemetry, account, or cloud service**. TV discovery and
+control stay on your LAN over **MQTT/TLS port 36669** with **mandatory PIN pairing**, and dashboard
+access is protected by the existing **private access key** printed at startup.
+
+### The "install apps inside the TV, not only on the server" fix
+
+The original Sidee only offered a fixed list of curated presets. Sidee Enhanced adds two distinct
+ways to use an app:
+
+1. **Install on TV** (per app, primary): Sidee sends the same `app_install` MQTT action used by the
+   original presets via `client.add_tile()`. The TV registers a launcher tile pointing straight at
+   the app's own URL. Nothing depends on Sidee's web server afterwards — the tile persists on the
+   TV across restarts. Icons default to a **self-contained SVG data URI**, so even the icon needs no
+   running server. **This works for custom URLs as well as catalog apps.**
+2. **Hosted dashboard** (optional): one tile that opens the locally served `/dashboard` page. This
+   requires Sidee to be running, because the page is served from this computer.
+
+The redesigned console makes the distinction explicit and offers "Install on TV", "Install all on
+TV", and "Install dashboard as one tile" as separate actions.
+
+---
 
 ## Requirements
 
 - Windows 10/11, or macOS 15+ (Apple Silicon or Intel)
 - A compatible VIDAA TV and a computer on the same home Wi-Fi/Ethernet network
-- Internet access for the initial Windows setup and any online experiences you choose to open on the TV
+- Internet access for the initial Windows setup and any online apps you open on the TV
 
-Compatibility varies by TV model and firmware. The primary tested firmware is U09.60 / V0000.09.60A.Q0707. Support for some other models is experimental; see the [compatibility notes](docs/toshiba-compatibility.md).
+Compatibility varies by TV model/firmware; see [compatibility notes](docs/toshiba-compatibility.md).
+Custom URLs are opened by the TV's own browser — playback/compatibility depends on that browser.
+
+---
 
 ## Get started
 
 ### Windows
 
-1. [Download Sidee for Windows](https://github.com/Empi9245/Sidee/releases/download/v0.1.4.2/sidee-windows.zip) and extract the ZIP.
-2. Double-click `start-windows.bat` in the extracted folder.
-3. Wait for the dashboard to open in your browser, then follow the on-screen steps.
+1. [Download Sidee for Windows](https://github.com/Empi9245/Sidee/releases/download/v0.1.4.2/sidee-windows.zip)
+   (or build `dist/sidee-windows.zip` with `python tools/build_windows_release.py`) and extract it.
+2. Double-click **`start-windows.bat`**. The redesigned console opens in your browser.
+3. Follow the onboarding wizard: **Find TV** → **Request code / enter the 4-digit PIN** → **Add your
+   first apps**.
 
-On first launch, Sidee downloads a private, version-pinned Python runtime and its connection dependency from official sources, verifying the downloads using SHA-256. You do not need to install Python yourself, enter commands, or grant administrator rights. Later launches reuse the downloaded runtime.
-
-Keep the launcher window open while using the dashboard. If the browser does not open automatically, use the full dashboard link shown in the launcher, including its access key. If Windows requests network access, allow it on your trusted home network.
+On first launch, Sidee downloads a private, version-pinned Python runtime and its connection
+dependency from official sources, verifying SHA-256 checksums. You do **not** need to install
+Python, use a terminal, or grant admin rights. Later launches reuse the downloaded runtime. Keep the
+launcher window open while using the console. If the browser doesn't open automatically, use the full
+link printed in the launcher (it includes the private access key). Allow local-network access if
+Windows asks.
 
 ### macOS
 
-The macOS download includes Sidee.app and its required runtime, so no separate Python installation or Terminal commands are needed.
+The macOS download bundles Sidee.app and its runtime — no Python install or Terminal commands.
 
-1. Get the package for your Mac from [Releases](https://github.com/Empi9245/Sidee/releases) or a successful [build workflow](https://github.com/Empi9245/Sidee/actions/workflows/build.yml). Choose `arm64` for Apple Silicon or `x64` for Intel.
-2. Open the DMG, drag Sidee.app to Applications, and launch it.
-3. Use **Open dashboard** in Sidee's control window.
+1. Get the DMG for your Mac from [Releases](https://github.com/Empi9245/Sidee/releases) or a
+   successful [build workflow](https://github.com/Empi9245/Sidee/actions/workflows/build.yml)
+   (`arm64` for Apple Silicon, `x64` for Intel).
+2. Open the DMG, drag Sidee.app to Applications, launch it, then choose **Open dashboard**.
 
-**Important:** The current macOS builds are not signed or notarized. macOS may prevent them from opening automatically. If you trust the downloaded package, follow [Apple's instructions](https://support.apple.com/en-us/102445) for opening an unverified app. If prompted, grant local network access so Sidee can discover your TV. The builds are checked in CI but still require broader testing on physical Macs.
+The current macOS builds are not signed/notarized; macOS may block them. If you trust the download,
+follow [Apple's instructions](https://support.apple.com/en-us/102445) for opening an unverified
+app, and grant Local Network access. Sidee's control window must stay open while you use the console.
 
-Sidee's control window must remain open while you use the dashboard; **Quit Sidee** stops the local dashboard service.
+> Both launchers now bundle the redesigned console (`core/enhanced.html`), the TV dashboard template
+> (`core/tv_dashboard.html`) and the new storage/catalog/media modules, so no extra files are needed.
 
-## Connect your TV
+---
 
-1. **Find TV:** Turn on your TV, put it on the same network as your computer, and select **Find TV**. Sidee uses the discovered address rather than assuming a fixed TV IP. If discovery fails, you can enter the address shown in the TV's network settings.
-2. **Request code:** Select **Request code** and enter the four-digit PIN displayed on your TV, then choose **Confirm code**. Pairing requires this confirmation.
-3. **Manage launcher tiles:** Choose an option offered in the dashboard and follow the confirmation steps. The available choices are maintained with Sidee; the dashboard does not currently accept arbitrary web-app URLs.
+## Using the redesigned console
 
-Registered tiles remain in the TV launcher across restarts, even when Sidee is no longer running. The availability of the web experiences opened by those tiles depends on their own network requirements.
+See [docs/ui-guide.md](docs/ui-guide.md) for a screen-by-screen description (and ASCII mockups) of
+the new UI. In short:
 
-**Want to use your phone?** The dashboard provides a locally generated QR code so you can open its controls on a phone connected to the same home network. Keep Sidee running on the computer and keep dashboard access links private.
+- **My Apps** — card grid of your tiles. Drag to reorder; each card has **Install on TV**, Open,
+  Edit and Delete. The drag order is saved to `custom_apps.json`.
+- **App Catalog** — categorised, searchable one-click apps. **+ Add** puts one in My Apps;
+  **Add & Install** installs it on the TV immediately. Apps that need your own server (Jellyfin,
+  Home Assistant, NAS, …) show a field for its LAN address.
+- **Dashboard Builder** — set the title, accent colours, theme, columns and clock/date/weather
+  widgets; **Open dashboard**, **Preview on TV**, or **Install dashboard as one tile**. The full URL
+  is displayed so you can copy it or open it directly on the TV browser.
+- **Local Media** — point at a folder, **Scan folder**, then **Open player**. Matching `.srt` files
+  become subtitles automatically.
+- **Settings** — export/import the whole setup, enable launch-at-login and Keep Alive, set the
+  preferred port, and read the privacy notes.
+- **Connect TV / Setup** — the 3-step onboarding wizard, manual TV IP check, and the **phone QR
+  code**. The original three-step page is still reachable at `/setup`.
 
-## How Sidee works
+**Custom URL**: click **+ Add app** (or **+ Custom URL**), paste e.g.
+`http://192.168.1.50:8080` or `https://app.plex.tv`, choose a name, category and icon (built-in
+library, uploaded image, or an https icon URL), then Save. The trust warning is shown but the URL is
+never blocked. Click **Install on TV** on the new tile to make it a permanent launcher tile.
 
-Sidee uses the TV's local control interface for network discovery, PIN-authorized pairing, and launcher management. The connection uses MQTT/TLS on port 36669. Sidee does not require an account or cloud service for discovery, pairing, or TV control.
+---
 
-Sidee is designed to use functions available to an authorized, paired TV client. It does not install native system software or modify the TV's operating system.
+## Persistent configuration
+
+All user data lives in `~/.sidee/` (mode 600 on Unix):
+
+| File | Contents |
+| --- | --- |
+| `session.json` | existing pairing tokens (unchanged) |
+| `custom_apps.json` | your tiles / custom URLs and their order — [sample](examples/custom_apps.json) |
+| `dashboard_config.json` | layout, colours, widgets and options — [sample](examples/dashboard_config.json) |
+| `icons/` | user-uploaded icon images |
+| `media/` | optional symlink to your local media folder |
+
+`SIDEE_STATE_DIR` overrides the profile directory (used by the test suite). The generated HTML
+dashboard template is [`core/tv_dashboard.html`](core/tv_dashboard.html).
+
+### Configuration file format
+
+```json
+{
+  "format": "sidee-enhanced/custom-apps",
+  "version": 1,
+  "apps": [
+    {
+      "id": "a1b2c3d4e5",
+      "name": "My Home Server",
+      "url": "http://192.168.1.50:8080",
+      "image": "",
+      "icon": "server",
+      "color": "#3d7bfd",
+      "category": "Custom",
+      "app_id": "app_f6g7h8i9j0",
+      "source": "custom",
+      "installed": false
+    }
+  ]
+}
+```
+
+Exports use `format: "sidee-enhanced/config"` and additionally contain `dashboard_config` and
+base64 `icons`. See the [examples](examples/) folder.
+
+---
+
+## How it works
+
+Sidee uses the TV's local control interface for SSDP discovery, PIN-authorised pairing, and
+launcher management (MQTT/TLS on port 36669). It does not install native system software or modify
+the TV OS. The built-in web server (default port **8080**, configurable with `--port` or Settings)
+serves the console, the generated TV dashboard, uploaded icons and local media (with HTTP Range
+support for video seeking).
+
+The redesigned console is a single self-contained HTML file with no external scripts, fonts, CDNs or
+analytics; the TV dashboard is likewise generated locally from a checked-in template.
 
 ## Privacy and security
 
-- **No Sidee telemetry:** TV discovery and control take place locally; Sidee does not require an account.
-- **Consent-based pairing:** You must confirm the PIN shown on your TV.
-- **Local credentials:** Saved pairing tokens remain in your user profile at `~/.sidee/session.json` (mode 600 on Unix; inherited user-profile permissions on Windows).
-- **Protected dashboard access:** Treat dashboard links and saved pairing tokens as private. Only share access with people you trust on your home network.
-- **Limited operations:** Sidee manages web launcher tiles through the TV's authorized control interface; it does not make system-level changes.
+- No telemetry: discovery, pairing and TV control are local; no account is required.
+- Consent-based pairing: you must confirm the 4-digit PIN shown on the TV.
+- Local credentials: saved tokens stay in `~/.sidee/session.json`.
+- Protected dashboard: every API/page requires the private key in the URL/QR link. Keep links private.
+- Arbitrary URLs are allowed but only `http`/`https` shapes are accepted (active schemes such as
+  `javascript:`/`file:`/`data:` are refused). A trust warning is shown — only add addresses you trust.
+- The TV dashboard's "weather" widget is a text field you set yourself; it makes **no** cloud calls.
 
-The first Windows setup downloads verified dependencies. Web experiences opened from the TV launcher may make their own network connections independently of Sidee.
-
-## Troubleshooting
-
-If **Find TV** cannot locate your TV, check that both devices share the same network and that a VPN, guest Wi-Fi, or firewall is not blocking local discovery. The manual IP option checks that the destination responds as a compatible TV and that port 36669 is reachable; it never bypasses PIN authorization.
-
-Some TVs advertise themselves rather than replying directly to discovery. In that case, keep the TV on and retry **Find TV**. For known firmware-specific pairing limitations, see the [compatibility notes](docs/toshiba-compatibility.md).
-
-On macOS, check **System Settings → Privacy & Security → Local Network** and, if needed, the firewall permissions for Sidee. Diagnostic logs are stored at `~/Library/Logs/Sidee/sidee.log`. Keep logs containing private access data confidential.
+---
 
 ## Development
 
-With Python 3.9+ already installed, the dashboard can also be started from a source checkout:
+With Python 3.9+ installed:
 
 ```bash
 python -m pip install -r requirements.txt
-python sidee.py
+python sidee.py                 # opens the redesigned console on port 8080
+python sidee.py --port 9000    # choose a port
+python sidee.py --headless     # no browser
+python sidee.py --keep-alive   # supervise + restart the server on a crash
+python sidee.py --self-test    # verify bundled resources/runtime without a GUI
 ```
 
-Optional command-line interface:
+Command-line interface (all TV actions still require a paired TV):
 
 ```bash
 python sidee.py discover
 python sidee.py pair TV_IP
-python sidee.py install PRESET_ID
-python sidee.py list
-python sidee.py launch PRESET_ID
-python sidee.py refresh
+python sidee.py install PRESET_ID              # original curated presets
+python sidee.py list                           # tiles currently on the TV
+python sidee.py apps                           # your saved custom apps
+python sidee.py add https://app.plex.tv --name Plex
+python sidee.py install-url http://192.168.1.50:8080 --name "My Server"
+python sidee.py install-app APP_ID             # install a saved app as a TV tile
+python sidee.py export setup.json
+python sidee.py import setup.json --merge
 ```
 
-Replace `TV_IP` with your TV's LAN address and `PRESET_ID` with an available built-in option. Pairing always requires the TV's authorization.
+`install-url` is the CLI proof of the new behaviour: it adds an arbitrary URL and immediately
+registers it as a permanent TV tile.
 
-Run Python tests with `python -m unittest discover -s tests` and dashboard interaction tests with `node --test tests/test_dashboard_selection.js`.
+Tests:
 
-Packaging information is in the [macOS build notes](docs/macos-build.md). Automated Windows and macOS builds are available through [GitHub Actions](https://github.com/Empi9245/Sidee/actions/workflows/build.yml).
+```bash
+python -m unittest discover -s tests
+node --test tests/test_dashboard_selection.js
+python tools/smoke_test.py --source
+python tools/public_release_guard.py --source-root .
+```
+
+Packaging: see [macOS build notes](docs/macos-build.md) and the
+[GitHub Actions workflow](.github/workflows/build.yml).
+
+---
 
 ## Why Sidee exists
 
-Sidee began with a simple idea: people should have more freedom to use technology they already own. After a lot of experimentation, that idea became a small tool designed to make everyday tasks easier and more approachable. If it helps you, please consider supporting continued development.
+Sidee began with a simple idea: people should have more freedom to use technology they already own.
+Sidee Enhanced keeps that idea — open URLs, open launcher, your data on your machine. If it helps
+you, please consider supporting continued development.
 
 ☕ [Support Sidee on Ko-fi](https://ko-fi.com/sidee)
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Sidee is an independent project and is not affiliated with TV manufacturers. Use it only with devices you own or are authorized to manage.
+MIT — see [LICENSE](LICENSE). Sidee Enhanced is a derivative work of Sidee (MIT), and remains MIT.
+Independent project; not affiliated with TV manufacturers.

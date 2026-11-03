@@ -1,0 +1,20 @@
+{
+  "format": "sidee-enhanced/dashboard",
+  "version": 1,
+  "title": "Living Room TV",
+  "accent": "#ffe600",
+  "accent2": "#7c5cff",
+  "theme": "dark",
+  "columns": 4,
+  "tile_style": "rounded",
+  "show_clock": true,
+  "show_date": true,
+  "show_weather": true,
+  "weather_text": "24°C · Clear",
+  "show_labels": true,
+  "port": 8080,
+  "autostart": false,
+  "keep_alive": false,
+  "media_root": "",
+  "onboarded": true
+}

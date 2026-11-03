@@ -20,6 +20,8 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(root / "core" / "dashboard.html"), "core"),
+        (str(root / "core" / "enhanced.html"), "core"),
+        (str(root / "core" / "tv_dashboard.html"), "core"),
         (str(root / "core" / "tv-client.bundle"), "core"),
         (str(root / "assets" / "sidee-logo.png"), "assets"),
         (str(root / "assets" / "nuvio-wordmark.png"), "assets"),

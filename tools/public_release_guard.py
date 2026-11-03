@@ -14,16 +14,19 @@ import subprocess
 import zipfile
 
 CORE_MODULES = (
-    "__init__.py", "_qrcodegen.py", "client.py", "native_api.py",
-    "native_session.py", "pairing.py", "phone.py", "platform_support.py",
-    "presets.py", "protocol.py", "webui.py",
+    "__init__.py", "_qrcodegen.py", "autostart.py", "catalog.py",
+    "client.py", "media.py", "native_api.py", "native_session.py",
+    "pairing.py", "phone.py", "platform_support.py", "presets.py",
+    "protocol.py", "storage.py", "webui.py",
 )
 TOP_LEVEL = ("README.md", "LICENSE", "requirements.txt", "sidee.py",
              "start-windows.bat", "start-windows.ps1")
 ASSETS = ("sidee-logo.png", "nuvio-wordmark.png", "jellyfin.png")
+PAGES = ("dashboard.html", "enhanced.html", "tv_dashboard.html")
+EXAMPLES = ("examples/custom_apps.json", "examples/dashboard_config.json")
 PUBLIC_FILES = (*TOP_LEVEL, *("core/" + n for n in CORE_MODULES),
-                "core/dashboard.html", "core/tv-client.bundle",
-                *("assets/" + n for n in ASSETS))
+                *("core/" + n for n in PAGES), "core/tv-client.bundle",
+                *("assets/" + n for n in ASSETS), *EXAMPLES)
 PRIVATE_PARTS = frozenset((
     ".git", ".opencode", ".zcode", ".freebuff", ".wrangler", ".sidee",
     ".vidaa-tile", ".runtime", ".venv", ".private", "node_modules",
