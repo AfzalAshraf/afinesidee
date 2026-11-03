@@ -1,4 +1,7 @@
 #Requires -Version 5.1
+# NOTE: This is an unsigned local setup script. Launch it with
+# START-WINDOWS.BAT (which applies -ExecutionPolicy Bypass), not by
+# running this file directly, or Windows may block it as unsigned.
 param([switch]$PrepareOnly)
 
 $ErrorActionPreference = 'Stop'

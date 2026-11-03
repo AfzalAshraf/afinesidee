@@ -40,6 +40,14 @@ class TestWindowsDownload(unittest.TestCase):
                 connection.client.tls_set_context.assert_called_once()
                 self.assertFalse((root / "user" / "certs.bin.k").exists())
 
+    def test_release_readme_explains_unsigned_script_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = build(Path(directory) / "download.zip")
+            with zipfile.ZipFile(archive) as downloaded:
+                readme = downloaded.read("Sidee/README.md").decode("utf-8")
+        self.assertIn("not digitally signed", readme)
+        self.assertIn("start-windows.bat", readme)
+        self.assertIn("Unblock-File", readme)
 
 class TestReopenDashboard(unittest.TestCase):
     def setUp(self):
@@ -94,6 +102,49 @@ class TestReopenDashboard(unittest.TestCase):
                 with open(self.path, "w", encoding="utf-8") as f:
                     json.dump(state, f)
                 self.assertFalse(webui._reopen_dashboard(True))
+
+
+class TestWindowsLauncherExecutionPolicy(unittest.TestCase):
+    """The .ps1 is unsigned; the .bat must launch it with a bypass and explain
+    the "not digitally signed" failure if someone runs the .ps1 directly."""
+
+    def setUp(self):
+        root = Path(__file__).resolve().parent.parent
+        self.bat = (root / "start-windows.bat").read_bytes()
+        self.ps1 = (root / "start-windows.ps1").read_bytes()
+
+    def test_batch_launcher_applies_execution_policy_bypass(self):
+        text = self.bat.decode("utf-8")
+        self.assertIn("-ExecutionPolicy Bypass", text)
+        self.assertIn("-NoProfile", text)
+        self.assertIn("-File \"%~dp0start-windows.ps1\"", text)
+        self.assertIn("%*", text)  # forwards -PrepareOnly and other switches
+
+    def test_batch_launcher_is_crlf_quoted_and_checks_the_script(self):
+        self.assertIn(b"\r\n", self.bat)
+        self.assertIn(b"cd /d \"%~dp0\"", self.bat)
+        self.assertIn(b"if not exist \"%~dp0start-windows.ps1\"", self.bat)
+
+    def test_batch_explains_digitally_signed_error(self):
+        text = self.bat.decode("utf-8").lower()
+        self.assertIn("digitally signed", text)
+        self.assertIn("start-windows.bat", text)
+        self.assertIn("execution policy", text)
+
+    def test_ps1_header_warns_not_to_run_directly(self):
+        head = self.ps1.decode("utf-8").splitlines()[:8]
+        self.assertEqual(head[0], "#Requires -Version 5.1")
+        self.assertTrue(any("-ExecutionPolicy Bypass" in line for line in head))
+        self.assertTrue(any("unsigned" in line.lower() for line in head))
+
+    def test_readme_and_launch_doc_cover_the_error(self):
+        root = Path(__file__).resolve().parent.parent
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        self.assertIn("not digitally signed", readme)
+        self.assertIn("Unblock-File", readme)
+        self.assertIn("docs/windows-launch.md", readme)
+        doc = (root / "docs" / "windows-launch.md").read_text(encoding="utf-8")
+        self.assertIn("Set-ExecutionPolicy -Scope CurrentUser RemoteSigned", doc)
 
 
 if __name__ == "__main__":

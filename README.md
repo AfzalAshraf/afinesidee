@@ -73,7 +73,10 @@ Custom URLs are opened by the TV's own browser — playback/compatibility depend
 
 1. [Download Sidee for Windows](https://github.com/Empi9245/Sidee/releases/download/v0.1.4.2/sidee-windows.zip)
    (or build `dist/sidee-windows.zip` with `python tools/build_windows_release.py`) and extract it.
-2. Double-click **`start-windows.bat`**. The redesigned console opens in your browser.
+2. Double-click **`start-windows.bat`** (not `start-windows.ps1`). The redesigned console opens in
+   your browser. The `.ps1` is an unsigned setup script — running it directly makes Windows report
+   *"is not digitally signed"*. The `.bat` applies `-ExecutionPolicy Bypass` for that one launch;
+   see [Troubleshooting](#troubleshooting) if you hit that error.
 3. Follow the onboarding wizard: **Find TV** → **Request code / enter the 4-digit PIN** → **Add your
    first apps**.
 
@@ -239,6 +242,59 @@ Packaging: see [macOS build notes](docs/macos-build.md) and the
 [GitHub Actions workflow](.github/workflows/build.yml).
 
 ---
+
+## Troubleshooting
+
+### "start-windows.ps1 is not digitally signed" / `UnauthorizedAccess`
+
+This happens when you run **`start-windows.ps1` directly** in PowerShell. That file is an
+unsigned local setup script, and many Windows machines use an `AllSigned` / `RemoteSigned`
+execution policy, so PowerShell refuses to load it:
+
+```
+& : File C:\My Apps\Afinesidee\start-windows.ps1 cannot be loaded.
+The file ... is not digitally signed. ... FullyQualifiedErrorId : UnauthorizedAccess
+```
+
+**Use the batch launcher instead** — it already applies the bypass for that one process:
+
+- Double-click **`start-windows.bat`** in File Explorer, **or**
+- From your existing PowerShell prompt: `& "C:\My Apps\Afinesidee\start-windows.bat"`, **or**
+- Explicitly:
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\My Apps\Afinesidee\start-windows.ps1"
+  ```
+
+Paths containing spaces (like `C:\My Apps\Afinesidee`) are fine — the launcher quotes them.
+Do **not** run the `.ps1` on its own. Other options:
+
+- If you downloaded a ZIP, Windows may have marked the files as coming from the Internet.
+  `Unblock-File` removes that mark (it is a command, so it is not blocked by the script policy):
+  ```powershell
+  Get-ChildItem "C:\My Apps\Afinesidee" -Recurse -File | Unblock-File
+  ```
+- To allow your own local scripts permanently (no admin rights needed):
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+  ```
+  Only do this if you understand the change; `-ExecutionPolicy Bypass` via the `.bat` is safer
+  because it affects just that one launch.
+- If your organisation enforces the policy through Group Policy, ask your administrator, or
+  install Python 3.9+ and run `python sidee.py` (see [Development](#development)).
+
+See [docs/windows-launch.md](docs/windows-launch.md) for a full walkthrough.
+
+### Find TV / network
+
+If **Find TV** cannot locate your TV, check that both devices share the same network and that a VPN,
+guest Wi-Fi, or firewall is not blocking local discovery. The manual IP option checks that the
+destination responds as a compatible TV and that port 36669 is reachable; it never bypasses PIN
+authorization. Some TVs advertise themselves rather than replying directly to discovery — keep the
+TV on and retry. For firmware-specific pairing limitations see the
+[compatibility notes](docs/toshiba-compatibility.md).
+
+On macOS, check **System Settings → Privacy & Security → Local Network** and, if needed, the
+firewall permissions for Sidee. Diagnostic logs are at `~/Library/Logs/Sidee/sidee.log`.
 
 ## Why Sidee exists
 
