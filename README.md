@@ -130,6 +130,13 @@ the new UI. In short:
 library, uploaded image, or an https icon URL), then Save. The trust warning is shown but the URL is
 never blocked. Click **Install on TV** on the new tile to make it a permanent launcher tile.
 
+**TV-friendly URL** (optional, per app): a second address used *only* by the TV tile and the
+generated dashboard, while **Open ↗** on your computer/phone still uses the main URL. This solves
+desktop sites that open on a TV but cannot be clicked with a D-pad — e.g. main URL
+`https://www.youtube.com`, TV URL `https://www.youtube.com/tv`. You can also mark an app as
+**Built for a TV remote** so the console shows it as D-pad-ready. See
+[Troubleshooting](#i-can-open-youtube-but-i-cant-click-inside-it--ad-blockers).
+
 ---
 
 ## Persistent configuration
@@ -283,6 +290,47 @@ Do **not** run the `.ps1` on its own. Other options:
   install Python 3.9+ and run `python sidee.py` (see [Development](#development)).
 
 See [docs/windows-launch.md](docs/windows-launch.md) for a full walkthrough.
+
+### "I can open YouTube but I can't click inside it" / ad blockers
+
+**Short version: this is not Sidee, and it is not ad-blocking inside Sidee.** Sidee Enhanced has no
+ads, no ad blocker, no injected scripts, no telemetry and no cloud service — it only opens the URL
+you gave it. YouTube itself is a **desktop website built for a mouse**; a VIDAA TV remote is a
+**D-pad (arrow keys + Enter)**, so the TV's web-app container can open the page but cannot click
+around inside it. The same happens with Netflix, Spotify, Twitch and most normal websites.
+
+What to do (in order):
+
+1. **Use a TV-friendly URL.** YouTube's remote interface is
+   **`https://www.youtube.com/tv`** (arrow keys + Enter). In the console, click **Edit** on the
+   YouTube tile and put that in **TV-friendly URL**. The computer/phone "Open ↗" link keeps the
+   normal `youtube.com`, while the TV tile and the generated `/dashboard` open `/tv`.
+   The YouTube catalog entry now ships with this TV link automatically, and configs exported before
+   this field existed also get it (they carry `catalog_id: youtube`).
+2. **Use the native YouTube app** on your TV if it has one — it is fully remote-controlled.
+3. **Try your TV browser's pointer/mouse mode** (some VIDAA firmware shows a cursor after pressing
+   OK / a pointer button). Availability varies by model.
+4. **Apps built for VIDAA** (Nuvio, Stremio, and the Sidee dashboard itself) already work with
+   arrows + Enter. The console labels tiles **🕹 D-pad OK**, **🖱 needs pointer** or **📺 TV link**
+   so you can tell before installing.
+
+**Is uBlock Origin / Brave blocking it?** On the **TV**, no — VIDAA runs neither Brave nor
+uBlock, so there is nothing to disable there. On your **PC/phone**, if you opened the YouTube link
+in **Brave** (Shields) or with **uBlock Origin**, those extensions can break YouTube: a blocked
+cookie/consent script often leaves an invisible overlay that swallows every click, and blocking
+`googlevideo.com` stops playback. Test in another browser or disable Shields/uBlock for
+`youtube.com`, `youtu.be` and `googlevideo.com`. None of this affects the Sidee console itself,
+which is served locally from your own machine and contains no third-party scripts.
+
+> Note: `youtube.com/tv` may show a one-time activation/pairing code on first use; that is
+> YouTube's own TV interface, not Sidee. If your TV's browser cannot run it, use the native app.
+
+### Duplicate tiles
+
+If the same app appears twice (e.g. Stremio added once and then "Add & Install"), Sidee now
+collapses tiles that share a VIDAA `app_id`, keeping the entry already installed on the TV. Adding
+the same catalog app again updates the existing tile instead of creating a duplicate — exactly what
+you want, because two tiles with one `app_id` would fight over a single launcher slot.
 
 ### Find TV / network
 

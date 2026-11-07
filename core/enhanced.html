@@ -105,6 +105,7 @@
   .tile .cat{position:absolute;top:12px;right:14px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#7d869a}
   .pill{font-size:10px;padding:3px 8px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
   .pill.on{color:var(--good);border-color:rgba(57,192,122,.4);background:rgba(57,192,122,.08)}
+  .pill.warn{color:#f4c76a;border-color:rgba(244,199,106,.4);background:rgba(244,199,106,.08)}
   .tile .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
   .grip{cursor:grab;color:#5d6577;font-size:16px;line-height:1;user-select:none;padding:2px}
   .empty-state{text-align:center;color:var(--muted);padding:56px 20px;border:1px dashed var(--line);border-radius:16px}
@@ -263,6 +264,16 @@
             MQTT/TLS. Once installed, the tile stays on your TV and opens the app even when Sidee is
             switched off. The hosted <code>/dashboard</code> page is an alternative single tile that
             needs Sidee running.</p></div>
+        </div>
+        <div class="callout" style="background:linear-gradient(110deg,rgba(244,199,106,.10),rgba(255,107,107,.06))">
+          <div class="big">🕹️</div>
+          <div><b>"I can open an app but can't click inside it"</b>
+            <p class="hint">A TV remote is a D-pad, not a mouse. Normal desktop sites such as
+            <b>youtube.com</b> open fine but you cannot click around inside them — that is the
+            site, not Sidee, and not an ad blocker. Tiles marked <b>🖱 needs pointer</b> need a
+            TV-friendly URL (set it in <b>Edit</b>, e.g. <code>youtube.com/tv</code>), your TV
+            browser's pointer/mouse mode, or the native app. Tiles marked <b>🕹 D-pad OK</b>
+            (Nuvio, Stremio, the Sidee dashboard) work with arrows + Enter out of the box.</p></div>
         </div>
         <div class="toolbar">
           <span class="pill" id="appCount">0 apps</span>
@@ -478,8 +489,19 @@
       <div class="field"><label>Category</label>
         <select id="fCategory"></select></div>
     </div>
-    <div class="field"><label>URL</label>
+    <div class="field"><label>URL (opens on your computer)</label>
       <input id="fUrl" type="text" placeholder="https://app.plex.tv or http://192.168.1.50:8080"></div>
+    <div class="field"><label>TV-friendly URL (optional — used for the TV tile &amp; dashboard)</label>
+      <input id="fTvUrl" type="text" placeholder="e.g. https://www.youtube.com/tv">
+      <p class="hint" style="margin-top:6px">A TV remote is a D-pad, not a mouse. Normal desktop sites
+        such as <b>youtube.com</b> open on the TV but you cannot click inside them. Set a remote-friendly
+        link here (YouTube's TV interface is <code>youtube.com/tv</code>), or use your TV browser's
+        pointer/mouse mode. Apps built for VIDAA (Nuvio, Stremio) already work with arrows + Enter.</p></div>
+    <div class="field"><label>How is this site controlled on the TV?</label>
+      <select id="fRemote">
+        <option value="pointer">Desktop site — needs a pointer / mouse</option>
+        <option value="pad">Built for a TV remote (arrow keys + Enter)</option>
+      </select></div>
     <div class="field"><label>Icon — pick from the built-in library</label>
       <div class="icon-picker" id="iconPicker"></div></div>
     <div class="form-grid" style="margin-top:14px">
@@ -511,7 +533,7 @@
   let S = {apps:[], catalog:{}, icons:{}, config:{}, status:{}, autostart:{},
            dashboard_url:"", trust_warning:"", media:{videos:[], root:""}, version:""};
   let editing = null;              // app id when editing, null when adding
-  let form = {icon:"globe", image:"", color:"#3d7bfd"};
+  let form = {icon:"globe", image:"", color:"#3d7bfd", remote:"pointer"};
   let selectedTv = null, pairingId = null;
   let toastTimer = null;
 
@@ -581,20 +603,25 @@
         '<div style="min-width:0;flex:1"><div class="nm">'+esc(app.name)+'</div>'+
         '<div class="url" title="'+esc(app.url)+'">'+esc(app.url)+'</div></div></div>'+
         '<div class="row"><span class="pill '+(app.installed?"on":"")+'">'+
-          (app.installed?"✓ on TV":"not installed")+'</span><span class="grip" title="Drag to reorder">⠿</span></div>'+
+          (app.installed?"✓ on TV":"not installed")+'</span>'+
+          (app.remote === "pad" ? '<span class="pill on" title="Built for a TV remote (arrows + Enter)">🕹 D-pad OK</span>'
+            : (app.tv_effective && app.tv_effective !== app.url
+                ? '<span class="pill on" title="Opens the TV-friendly link on your TV: '+esc(app.tv_effective)+'">📺 TV link</span>'
+                : '<span class="pill warn" title="'+(app.remote_note ? esc(app.remote_note) : "This is a desktop site: a TV remote cannot click inside it without pointer/mouse mode. Set a TV-friendly URL in Edit.")+'">🖱 needs pointer</span>'))+
+          '<span class="grip" title="Drag to reorder">⠿</span></div>'+
         '<div class="actions">'+
           '<button class="btn primary sm" data-act="install">📲 Install on TV</button>'+
-          '<button class="btn sm" data-act="open">Open ↗</button>'+
+          '<a class="btn sm" data-act="open" href="'+esc(app.url)+'" target="_blank" rel="noopener noreferrer">Open ↗</a>'+
           '<button class="btn sm" data-act="edit">Edit</button>'+
           '<button class="btn sm danger" data-act="del">🗑</button>'+
         '</div>';
       el.addEventListener("click", e => {
         const act = e.target.closest("[data-act]");
         if (!act) return;
+        if (act.dataset.act === "open") return;   // real link: let the browser handle it
         e.stopPropagation();
         const a = act.dataset.act;
         if (a === "install") installApp(app.id);
-        else if (a === "open") window.open(app.url, "_blank", "noopener");
         else if (a === "edit") openModal(app);
         else if (a === "del") deleteApp(app.id);
       });
@@ -655,9 +682,16 @@
       match.forEach(a => {
         const c = document.createElement("div"); c.className = "cat-card";
         const ic = S.icons[a.icon] || {glyph:"🌐", color:"#3d7bfd"};
+        const badge = a.remote === "pad"
+          ? '<span class="pill on" title="Built for a TV remote (arrows + Enter)">🕹 D-pad OK</span>'
+          : (a.tv_url ? '<span class="pill on" title="Opens '+esc(a.tv_url)+' on the TV">📺 TV link</span>'
+                      : '<span class="pill warn">🖱 needs pointer</span>');
+        const note = a.remote_note
+          ? '<div class="hint" style="font-size:11px">'+esc(a.remote_note)+'</div>' : '';
         c.innerHTML =
           '<div class="art" style="background:'+esc(a.color)+'55">'+ic.glyph+'</div>'+
           '<div class="nm">'+esc(a.name)+'</div><div class="ds">'+esc(a.description)+'</div>'+
+          '<div class="row">'+badge+'</div>'+note+
           (a.needs_server ? '<input type="text" class="srv" placeholder="'+esc(a.server_placeholder||"Server address")+'">' : "")+
           '<div class="row"><button class="btn primary sm" data-act="add">+ Add</button>'+
           '<button class="btn sm" data-act="install">Add &amp; Install</button></div>';
@@ -696,12 +730,15 @@
   }
   function openModal(app) {
     editing = app ? app.id : null;
-    form = {icon: app?app.icon:"globe", image: app?app.image:"", color: app?app.color:"#3d7bfd"};
+    form = {icon: app?app.icon:"globe", image: app?app.image:"",
+            color: app?app.color:"#3d7bfd", remote: app?(app.remote||"pointer"):"pointer"};
     $("modalTitle").textContent = app ? "Edit app" : "Add a custom app";
     $("modalSub").textContent = app ? "Change the name, URL or icon." : "Paste any web address — any domain is allowed.";
     $("trustWarn").hidden = false;
     $("fName").value = app ? app.name : "";
     $("fUrl").value = app ? app.url : "";
+    $("fTvUrl").value = app && app.tv_url ? app.tv_url : "";
+    $("fRemote").value = form.remote;
     $("fCategory").value = app && [...$("fCategory").options].some(o=>o.value===app.category) ? app.category : "Custom";
     $("fIconUrl").value = app && app.image.startsWith("http") ? app.image : "";
     $("fIconFile").value = "";
@@ -728,6 +765,7 @@
   });
   $("btnSaveApp").onclick = async () => {
     const payload = {name:$("fName").value.trim(), url:$("fUrl").value.trim(),
+      tv_url:$("fTvUrl").value.trim(), remote:$("fRemote").value,
       category:$("fCategory").value, icon:form.icon, image:$("fIconUrl").value.trim() || form.image,
       color:form.color};
     if (!payload.name) return toast("Give the app a name.", "err");

@@ -92,11 +92,38 @@ def player_url(port: int) -> str:
     return f"{_lan_base(port)}/player?key={urllib.parse.quote(ACCESS_KEY, safe='')}"
 
 
+def effective_url(app: dict) -> str:
+    """The URL a TV should open.
+
+    Prefer an explicit remote-friendly link, then the catalog's TV variant
+    (so configs exported *before* ``tv_url`` existed still get, for example,
+    youtube.com/tv), then the plain desktop URL.
+    """
+    if app.get("tv_url"):
+        return app["tv_url"]
+    entry = catalog.get(str(app.get("catalog_id") or ""))
+    if entry and entry.get("tv_url"):
+        return entry["tv_url"]
+    return app["url"]
+
+
+def enrich_app(app: dict) -> dict:
+    """Add display-only TV metadata. Catalog apps always take their remote
+    behaviour from the catalog, which keeps older config files accurate."""
+    out = dict(app)
+    entry = catalog.get(str(app.get("catalog_id") or ""))
+    if entry:
+        out["remote"] = entry.get("remote", out.get("remote", "pointer"))
+        out["remote_note"] = entry.get("remote_note", "")
+    out["tv_effective"] = effective_url(out)
+    return out
+
+
 def render_tv_dashboard(port: int) -> bytes:
     """Generate the personalised full-screen TV dashboard HTML for this user."""
     data = {
         "config": storage.load_config(),
-        "apps": storage.load_apps(),
+        "apps": [dict(a, url=effective_url(a)) for a in storage.load_apps()],
         "icons": {i["id"]: {"glyph": i["glyph"], "label": i["label"]}
                   for i in catalog.icon_library()},
     }
@@ -115,7 +142,7 @@ def state_payload(port: int) -> dict:
     return {
         "ok": True,
         "version": VERSION,
-        "apps": storage.load_apps(),
+        "apps": [enrich_app(a) for a in storage.load_apps()],
         "catalog": catalog.by_category(),
         "icons": {i["id"]: {"label": i["label"], "glyph": i["glyph"],
                             "color": i["color"]} for i in catalog.icon_library()},
@@ -144,7 +171,7 @@ def _paired_session() -> client.Session:
 def install_app(app: dict, port: int) -> dict:
     """Register ONE app (custom URL or catalog) as a permanent TV tile."""
     session = _paired_session()
-    url, name = app["url"], app["name"]
+    url, name = effective_url(app), app["name"]
     app_id = storage.tile_app_id(app)
     image = app.get("image") or ""
     if image.startswith(("/icons/", "/assets/")):
@@ -558,6 +585,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "icon": str(data.get("icon", "globe")),
                 "color": str(data.get("color", "")),
                 "category": str(data.get("category", "Custom")),
+                "tv_url": str(data.get("tv_url", "")),
+                "remote": str(data.get("remote", "pointer")),
                 "source": "custom",
             })
         return {"ok": True, "app": app, "apps": storage.load_apps(),
@@ -566,7 +595,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _apps_update(self, data: dict) -> list[dict]:
         app_id = str(data.get("id", ""))
         patch = {k: v for k, v in data.items()
-                 if k in ("name", "url", "image", "icon", "color", "category")}
+                 if k in ("name", "url", "tv_url", "remote", "image", "icon",
+                          "color", "category")}
         if not patch:
             raise ValueError("Nothing to update.")
         storage.update_app(app_id, patch)

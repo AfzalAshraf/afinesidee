@@ -54,8 +54,15 @@ def _fav(domain: str) -> str:
 
 def _app(id, name, url, category, icon, color, description, image="",
          **extra):
+    # ``remote`` describes how the site is controlled on a TV:
+    #   "pad"     - built for a D-pad (arrow keys + Enter)
+    #   "pointer" - a normal desktop site that expects a mouse; a TV remote
+    #               cannot click inside it without the browser's pointer mode.
+    # ``tv_url`` is an optional remote-friendly alternative used for TV tiles
+    # and the generated dashboard when the user sets it.
     d = dict(id=id, name=name, url=url, category=category, icon=icon,
-             color=color, description=description, image=image)
+             color=color, description=description, image=image,
+             remote="pointer", tv_url="")
     d.update(extra)
     return d
 
@@ -66,13 +73,14 @@ APPS: list[dict] = [
     # --- Featured: the original curated presets, kept for compatibility ---
     _app("nuvio", "Nuvio", "https://nuviotvsmart.vercel.app/vidaa.html",
          "Featured", "play", "#ffe600", "Browse and stream your library",
-         "https://nuviotvsmart.vercel.app/assets/images/tizenIcon.png"),
+         "https://nuviotvsmart.vercel.app/assets/images/tizenIcon.png",
+         remote="pad"),
     _app("stremio", "Stremio",
          "https://noobygains.github.io/stremio-vidaa-tv/?install_source=sidee",
          "Featured", "play", "#7c5cff", "Full Stremio TV for VIDAA",
          "https://noobygains.github.io/stremio-vidaa-tv/icon.png",
          server_builder="stremio", server_optional=True,
-         server_placeholder="Streaming server URL (optional)"),
+         server_placeholder="Streaming server URL (optional)", remote="pad"),
     _app("jellyfin", "Jellyfin", "", "Featured", "film", "#aa5cc3",
          "Your media from your Jellyfin server", _fav("jellyfin.org"),
          needs_server=True, server_builder="jellyfin",
@@ -86,7 +94,12 @@ APPS: list[dict] = [
          needs_server=True, server_builder="jellyfin",
          server_placeholder="Your Emby server's IP or URL"),
     _app("youtube", "YouTube", "https://www.youtube.com", "Streaming", "play",
-         "#ff0033", "YouTube on the big screen", _fav("youtube.com")),
+         "#ff0033", "YouTube on the big screen (desktop site — needs a pointer)",
+         _fav("youtube.com"), remote="pointer",
+         tv_url="https://www.youtube.com/tv",
+         remote_note="youtube.com is a desktop site: a TV remote cannot click "
+                     "inside it. Try the TV interface (youtube.com/tv), your "
+                     "TV's pointer/mouse mode, or the native YouTube app."),
     _app("netflix", "Netflix", "https://www.netflix.com", "Streaming", "film",
          "#e50914", "Netflix web", _fav("netflix.com")),
     _app("disney", "Disney+", "https://www.disneyplus.com", "Streaming", "star",
@@ -265,6 +278,8 @@ def catalog_tile(entry: dict, server: str = "", lan_base: str = "") -> dict:
         "icon": e["icon"],
         "color": e["color"],
         "category": e["category"],
+        "tv_url": e.get("tv_url", ""),
+        "remote": e.get("remote", "pointer"),
         "source": "catalog",
         "catalog_id": e["id"],
         "app_id": "cat_" + re.sub(r"[^a-z0-9_]", "_", e["id"].lower())[:28],

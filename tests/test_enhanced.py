@@ -452,6 +452,20 @@ class TestHTTPEndpoints(IsolatedState):
         r = json.loads(self.post("/api/config/import", {"config": exported})[2])
         self.assertTrue(r["ok"] and r["apps"] == 1)
 
+
+    def test_generated_dashboard_uses_tv_link_not_desktop(self):
+        self.post("/api/apps/add", {"name": "YouTube",
+                                   "url": "https://www.youtube.com",
+                                   "tv_url": "https://www.youtube.com/tv",
+                                   "catalog_id": "youtube"})
+        status, _, body = self.request("/dashboard")
+        self.assertEqual(status, 200)
+        self.assertIn(b"https://www.youtube.com/tv", body)
+        state = json.loads(self.request("/api/state")[2])
+        yt = next(a for a in state["apps"] if a["name"] == "YouTube")
+        self.assertEqual(yt["url"], "https://www.youtube.com")
+        self.assertEqual(yt["tv_effective"], "https://www.youtube.com/tv")
+
     def test_media_scan_player_and_range_request(self):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
@@ -475,6 +489,71 @@ class TestHTTPEndpoints(IsolatedState):
         self.assertIn(b"00:00:01.000", body)
         status, _, _ = self.request("/media/raw/../secret.mp4")
         self.assertEqual(status, 404)
+
+
+class TestTVFriendlyLinks(IsolatedState):
+    """A TV remote is a D-pad, not a mouse. Desktop sites open but cannot be
+    clicked inside; TV tiles/dashboard must use a remote-friendly URL."""
+
+    def test_explicit_tv_url_is_used_for_the_tv_only(self):
+        app = storage.add_app({"name": "YouTube", "url": "https://www.youtube.com",
+                               "tv_url": "https://www.youtube.com/tv",
+                               "catalog_id": "youtube"})
+        tile = {"appId": app["app_id"], "url": "https://www.youtube.com/tv"}
+        with patch.object(client.Session, "load_or_none",
+                          return_value=client.Session(host="10.0.0.5")), \
+             patch.object(client, "add_tile", return_value=[tile]) as add:
+            result = webui.install_app(app, 8080)
+        self.assertTrue(result["ok"])
+        self.assertEqual(add.call_args.args[3], "https://www.youtube.com/tv")
+        # The computer/phone still opens the normal desktop site.
+        self.assertEqual(storage.get_app(app["id"])["url"], "https://www.youtube.com")
+
+    def test_legacy_config_without_tv_url_still_gets_the_tv_variant(self):
+        # This is the shape of a config exported before tv_url existed.
+        storage.import_config({"apps": [{
+            "id": "ytlegacy", "name": "YouTube", "url": "https://www.youtube.com",
+            "catalog_id": "youtube", "app_id": "cat_youtube"}]})
+        app = storage.load_apps()[0]
+        self.assertEqual(app["tv_url"], "")
+        self.assertEqual(webui.effective_url(app), "https://www.youtube.com/tv")
+        state = webui.state_payload(8080)
+        self.assertEqual(state["apps"][0]["url"], "https://www.youtube.com")
+        self.assertEqual(state["apps"][0]["tv_effective"], "https://www.youtube.com/tv")
+        self.assertEqual(state["apps"][0]["remote"], "pointer")
+        self.assertIn("https://www.youtube.com/tv",
+                      webui.render_tv_dashboard(8080).decode("utf-8"))
+
+    def test_catalog_youtube_entry_has_remote_metadata(self):
+        entry = catalog.get("youtube")
+        self.assertEqual(entry["tv_url"], "https://www.youtube.com/tv")
+        self.assertEqual(entry["remote"], "pointer")
+        self.assertIn("cannot click", entry["remote_note"])
+        self.assertEqual(catalog.get("stremio")["remote"], "pad")
+
+    def test_adding_the_same_catalog_app_twice_upserts(self):
+        a = storage.add_app({"name": "Stremio", "url": "https://s.example",
+                             "catalog_id": "stremio", "app_id": "cat_stremio"})
+        b = storage.add_app({"name": "Stremio", "url": "https://s.example",
+                             "catalog_id": "stremio", "app_id": "cat_stremio"})
+        self.assertEqual(a["id"], b["id"])
+        self.assertEqual(len(storage.load_apps()), 1)
+
+    def test_duplicate_tile_ids_collapse_preferring_installed(self):
+        path = Path(self.state) / storage.APPS_FILE
+        path.write_text(json.dumps({"apps": [
+            {"id": "aaa", "name": "Stremio", "url": "https://s.example",
+             "app_id": "cat_stremio", "installed": False},
+            {"id": "bbb", "name": "Stremio", "url": "https://s.example",
+             "app_id": "cat_stremio", "installed": True}]}), encoding="utf-8")
+        apps = storage.load_apps()
+        self.assertEqual(len(apps), 1)
+        self.assertTrue(apps[0]["installed"])
+
+    def test_invalid_tv_url_reports_which_field_failed(self):
+        with self.assertRaisesRegex(ValueError, "TV-friendly URL"):
+            storage.add_app({"name": "X", "url": "https://x.example",
+                             "tv_url": "javascript:alert(1)"})
 
 
 if __name__ == "__main__":

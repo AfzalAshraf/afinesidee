@@ -6,6 +6,8 @@
       "id": "a1b2c3d4e5",
       "name": "YouTube",
       "url": "https://www.youtube.com",
+      "tv_url": "https://www.youtube.com/tv",
+      "remote": "pointer",
       "image": "https://www.youtube.com/favicon.ico",
       "icon": "play",
       "color": "#ff0033",

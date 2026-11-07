@@ -47,10 +47,14 @@ content; the tile grid becomes a single column and the top bar stacks.
 ## 2. My Apps
 
 Card-based tiles. Each card shows the icon (built-in emoji/SVG, uploaded image, or an https icon),
-name, truncated URL, category chip, an "on TV / not installed" pill and a drag grip. Actions:
-**📲 Install on TV** (primary), **Open ↗**, **Edit**, **🗑 Delete**. Dragging a card onto another
-reorders them via `POST /api/apps/reorder`; the order is written to `custom_apps.json` immediately.
-Tooltips (`data-tip`) explain the bulk actions; help text below the grid explains where data is saved.
+name, truncated URL, category chip, an "on TV / not installed" pill and a drag grip. Two extra pills
+tell you how the site behaves on a TV: **🕹 D-pad OK** (built for arrow keys + Enter, e.g. Nuvio,
+Stremio), **📺 TV link** (a separate TV-friendly URL is used, e.g. `youtube.com/tv`), or
+**🖱 needs pointer** (a normal desktop site — a TV remote cannot click inside it). A callout above
+the grid explains the "opens but can't click" case. Actions: **📲 Install on TV** (primary),
+**Open ↗** (opens the desktop URL on your computer/phone), **Edit**, **🗑 Delete**. Dragging a card
+onto another reorders them via `POST /api/apps/reorder`; the order is written to
+`custom_apps.json` immediately. Tooltips (`data-tip`) explain the bulk actions.
 
 ## 3. Add / Edit modal (Custom URL)
 
@@ -63,7 +67,14 @@ Tooltips (`data-tip`) explain the bulk actions; help text below the grid explain
 │ │    accessible from your TV.                       │ │
 │ └───────────────────────────────────────────────────┘ │
 │ Name [ My Plex          ]  Category [ Streaming ▾ ]   │
-│ URL  [ https://app.plex.tv                          ]  │
+│ URL (opens on your computer)                          │
+│      [ https://app.plex.tv                          ]  │
+│ TV-friendly URL (optional — used for TV tile/dashb.)  │
+│      [ e.g. https://www.youtube.com/tv              ]  │
+│      A TV remote is a D-pad, not a mouse. Desktop      │
+│      sites open but cannot be clicked inside.         │
+│ How is this site controlled on the TV?                │
+│      [ Desktop site — needs a pointer / mouse   ▾ ]   │
 │ Icon — pick from the built-in library                  │
 │  [▶][🎬][🎵][📺][☁️][🗄️][🏠][📊][🛡️][⚡][⛅][🎮] …       │
 │ Or upload an image [ Choose file ]  Or https icon URL  │

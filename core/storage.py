@@ -205,6 +205,24 @@ def _empty_apps() -> dict:
     return {"format": FORMAT_APPS, "version": FORMAT_VERSION, "apps": []}
 
 
+def _dedupe(apps: list[dict]) -> list[dict]:
+    """Two tiles with the same VIDAA ``app_id`` would fight over one launcher
+    slot. Collapse duplicates, preferring the entry that is already installed
+    (so importing an older config never loses the TV tile state)."""
+    by_key: dict[str, int] = {}
+    result: list[dict] = []
+    for app in apps:
+        key = app.get("app_id") or ("id:" + app["id"])
+        if key in by_key:
+            index = by_key[key]
+            if app.get("installed") and not result[index].get("installed"):
+                result[index] = app
+            continue
+        by_key[key] = len(result)
+        result.append(app)
+    return result
+
+
 def load_apps() -> list[dict]:
     data = _read_json(path(APPS_FILE), _empty_apps())
     raw = data.get("apps", []) if isinstance(data, dict) else []
@@ -218,7 +236,7 @@ def load_apps() -> list[dict]:
             continue
         seen.add(app["id"])
         apps.append(app)
-    return apps
+    return _dedupe(apps)
 
 
 def save_apps(apps: list[dict]) -> None:
@@ -236,6 +254,18 @@ def normalize_app(raw: dict) -> dict:
     if not SAFE_NAME.fullmatch(rid) or len(rid) > 40:
         rid = secrets.token_hex(5)
     url = normalize_url(str(raw.get("url", "")))
+    # Optional TV-remote-friendly address (e.g. https://www.youtube.com/tv).
+    # When set, TV tiles and the generated dashboard open this instead of the
+    # desktop URL, because a TV remote is a D-pad, not a mouse.
+    tv_url = str(raw.get("tv_url") or "").strip()
+    if tv_url:
+        try:
+            tv_url = normalize_url(tv_url)
+        except ValueError as error:
+            raise ValueError("TV-friendly URL: " + str(error)) from None
+    remote = str(raw.get("remote") or "pointer")
+    if remote not in ("pad", "pointer"):
+        remote = "pointer"
     name = normalize_name(raw.get("name") or urlsplit(url).hostname or "App")
     image = normalize_image(raw.get("image", ""))
     icon = str(raw.get("icon") or "globe")
@@ -252,6 +282,8 @@ def normalize_app(raw: dict) -> dict:
         "id": rid,
         "name": name,
         "url": url,
+        "tv_url": tv_url,
+        "remote": remote,
         "image": image,
         "icon": icon,
         "color": color,
@@ -267,14 +299,27 @@ def normalize_app(raw: dict) -> dict:
 
 def add_app(raw: dict) -> dict:
     apps = load_apps()
-    if len(apps) >= MAX_APPS:
-        raise ValueError(f"You can keep up to {MAX_APPS} apps.")
     raw = dict(raw)
     raw.setdefault("id", secrets.token_hex(5))
     raw.setdefault("added_at", datetime.datetime.now().isoformat(timespec="seconds"))
     app = normalize_app(raw)
-    # Reuse an existing tile id so editing a URL replaces the TV tile instead
-    # of leaving a duplicate behind.
+    # Adding the same catalog app (or the same VIDAA tile id) twice must UPDATE
+    # the existing tile, not create a duplicate that fights for one launcher
+    # slot. Keep the stable id and the known install state.
+    for index, existing in enumerate(apps):
+        same_id = existing["app_id"] == app["app_id"]
+        same_catalog = bool(app["catalog_id"]) and \
+            existing.get("catalog_id") == app["catalog_id"]
+        if same_id or same_catalog:
+            raw["id"] = existing["id"]
+            raw["added_at"] = existing.get("added_at") or raw["added_at"]
+            raw.setdefault("installed", existing.get("installed", False))
+            app = normalize_app(raw)
+            apps[index] = app
+            save_apps(apps)
+            return app
+    if len(apps) >= MAX_APPS:
+        raise ValueError(f"You can keep up to {MAX_APPS} apps.")
     apps.append(app)
     save_apps(apps)
     return app
@@ -286,8 +331,8 @@ def update_app(app_id: str, patch: dict) -> dict:
         if app["id"] == app_id:
             merged = dict(app)
             merged.update({k: v for k, v in patch.items()
-                           if k in ("name", "url", "image", "icon", "color",
-                                    "category", "installed")})
+                           if k in ("name", "url", "tv_url", "remote", "image",
+                                    "icon", "color", "category", "installed")})
             apps[index] = normalize_app(merged)
             save_apps(apps)
             return apps[index]
@@ -478,6 +523,7 @@ def import_config(obj, merge: bool = False) -> dict:
                 apps.append(app)
     else:
         apps = incoming
+    apps = _dedupe(apps)
     save_apps(apps)
 
     icons_added = 0
